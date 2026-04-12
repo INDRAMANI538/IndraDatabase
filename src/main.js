@@ -20,6 +20,11 @@ import {
 const ADMIN_CODE = 'Indramani$1*';
 const PAGE_SIZE  = 10;
 
+// Initialize EmailJS once at startup
+const _ejsPublicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+if (_ejsPublicKey) emailjs.init({ publicKey: _ejsPublicKey });
+
+
 let currentUser      = null;
 let currentUserRole  = null;
 let currentUserName  = null;
@@ -630,11 +635,23 @@ function openViewModal(studentId) {
 }
 
 function renderViewModal(s) {
-  const adminActions = currentUserRole === 'admin' ? `
-    <div style="display:flex;gap:10px;margin-top:22px;flex-wrap:wrap">
-      <button class="btn-secondary" onclick="closeViewModal();openEditModal('${s.id}')">✏️ Edit Student</button>
-      <button class="btn-danger"    onclick="closeViewModal();openDeleteModal('${s.id}','${escAttr(s.fullName)}')">🗑️ Delete Student</button>
-    </div>` : '';
+  let adminActions = '';
+  if (currentUserRole === 'admin') {
+    if (currentPage === 'group-detail' && currentGroupId) {
+      // Inside a group — only allow removing from group, NOT global delete
+      adminActions = `
+        <div style="display:flex;gap:10px;margin-top:22px;flex-wrap:wrap">
+          <button class="btn-secondary" onclick="closeViewModal();openEditModal('${s.id}')">✏️ Edit Student</button>
+          <button class="btn-danger"    onclick="closeViewModal();removeFromGroup('${currentGroupId}','${s.id}')">➖ Remove from Group</button>
+        </div>`;
+    } else {
+      adminActions = `
+        <div style="display:flex;gap:10px;margin-top:22px;flex-wrap:wrap">
+          <button class="btn-secondary" onclick="closeViewModal();openEditModal('${s.id}')">✏️ Edit Student</button>
+          <button class="btn-danger"    onclick="closeViewModal();openDeleteModal('${s.id}','${escAttr(s.fullName)}')">🗑️ Delete Student</button>
+        </div>`;
+    }
+  }
   document.getElementById('view-modal-body').innerHTML = `
     <div class="profile-header">
       <div class="profile-avatar" style="background:${getAvatarColor(s.fullName)}">${getInitials(s.fullName)}</div>
@@ -935,7 +952,8 @@ async function openGroupDetail(groupId) {
     const idx = groupsCache.findIndex(g => g.id === groupId);
     if (idx >= 0) groupsCache[idx] = group; else groupsCache.push(group);
 
-    if (!studentsCache.length) studentsCache = await fetchAllStudents();
+    // Always refresh so newly added students appear immediately
+    studentsCache = await fetchAllStudents();
     const groupStudents = studentsCache.filter(s => studentIds.includes(s.id));
 
     document.getElementById('page-title').textContent = group.name;
@@ -1039,9 +1057,10 @@ async function handleAddMembers() {
     await updateDoc(doc(db, 'groups', addMembersGrpId), { studentIds: arrayUnion(...ids) });
     const g = groupsCache.find(g => g.id === addMembersGrpId);
     if (g) g.studentIds = [...new Set([...(g.studentIds || []), ...ids])];
+    const savedGrpId = addMembersGrpId;   // save BEFORE close nullifies it
     showToast(`✅ ${ids.length} student${ids.length > 1 ? 's' : ''} added!`, 'success');
     closeAddMembersModal();
-    openGroupDetail(addMembersGrpId);
+    openGroupDetail(savedGrpId);
   } catch (err) {
     showToast('Error adding students.', 'error');
   } finally {
@@ -1127,7 +1146,7 @@ async function handleSendMail(e) {
         subject,
         message:   message.replace(/\{\{name\}\}/gi, student.fullName),
         from_name: 'IndraDatabase',
-      }, publicKey);
+      });
       sent++;
     } catch (err) {
       console.error(`Failed: ${student.email}`, err);
