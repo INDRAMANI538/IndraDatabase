@@ -792,11 +792,11 @@ tbody td { padding: 13px 18px; font-size: 14px; color: var(--text-primary); vert
   /* Table scroll */
   .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-  /* Modals — bottom sheet style */
-  .modal-overlay { padding: 0; align-items: flex-end; }
-  .modal         { border-radius: var(--r-xl) var(--r-xl) 0 0; max-height: 92dvh; max-width: 100%; }
+  /* Modals — centered on mobile */
+  .modal-overlay { padding: 12px; align-items: center; }
+  .modal         { border-radius: var(--r-xl); max-height: 88dvh; max-width: 100%; width: 100%; }
   .modal-body    { padding: 16px; }
-  .modal-header  { padding: 14px 18px; border-radius: var(--r-xl) var(--r-xl) 0 0; }
+  .modal-header  { padding: 14px 18px; }
   .modal-actions { flex-direction: column-reverse; gap: 8px; }
   .modal-actions .btn-primary,
   .modal-actions .btn-secondary,
