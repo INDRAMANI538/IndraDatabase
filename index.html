@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IndraDatabase — Student Management System</title>
+  <meta name="description" content="IndraDatabase — Premium Student Management System. Manage records, enrollment, GPA and more." />
+  <!-- Inline critical styles: prevents white flash BEFORE Vite injects CSS -->
+  <style>
+    html, body { margin: 0; padding: 0; background: #050814; }
+    #splash {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #050814;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 20px;
+    }
+    #splash .sp-icon {
+      width: 60px; height: 60px; border-radius: 14px;
+      background: linear-gradient(135deg,#7c3aed,#4f46e5);
+      display: flex; align-items: center; justify-content: center;
+      font-family: sans-serif; font-weight: 800; font-size: 14px;
+      letter-spacing: 1px; color: #fff;
+      box-shadow: 0 0 40px rgba(124,58,237,0.5);
+      animation: spPulse 1.4s ease-in-out infinite;
+    }
+    #splash .sp-ring {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(124,58,237,0.2);
+      border-top-color: #7c3aed;
+      border-radius: 50%;
+      animation: spSpin 0.75s linear infinite;
+    }
+    @keyframes spPulse { 0%,100%{box-shadow:0 0 30px rgba(124,58,237,.4)} 50%{box-shadow:0 0 60px rgba(124,58,237,.7)} }
+    @keyframes spSpin  { to { transform: rotate(360deg); } }
+    #splash.fade-out  { animation: spFade 0.3s ease forwards; }
+    @keyframes spFade  { to { opacity: 0; pointer-events: none; } }
+  </style>
+  <!-- CSS injected by Vite via src/main.js -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Vite entry point (Firebase SDK bundled via npm) -->
+</head>
+<body>
+
+  <!-- Splash screen: hides page until Firebase resolves auth state -->
+  <div id="splash">
+    <div class="sp-icon">ID</div>
+    <div class="sp-ring"></div>
+  </div>
+
+  <!-- ============================
+       AUTH SECTION
+       ============================ -->
+  <div id="auth-section" class="auth-wrapper hidden">
+    <div class="bg-blobs">
+      <div class="blob blob-1"></div>
+      <div class="blob blob-2"></div>
+      <div class="blob blob-3"></div>
+    </div>
+
+    <div class="auth-card glass">
+      <!-- Logo -->
+      <div class="auth-logo">
+        <div class="logo-icon">ID</div>
+        <div>
+          <h1>IndraDatabase</h1>
+          <p>Student Management System</p>
+        </div>
+      </div>
+
+      <!-- Tab Switcher -->
+      <div class="auth-tabs">
+        <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">Sign In</button>
+        <button class="tab-btn" id="tab-register" onclick="switchTab('register')">Register</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" class="auth-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label>Email Address</label>
+          <div class="input-wrapper">
+            <svg class="input-icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+            <input type="email" id="login-email" placeholder="Enter your email" required autocomplete="email" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <div class="input-wrapper">
+            <svg class="input-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+            <input type="password" id="login-password" placeholder="Enter your password" required autocomplete="current-password" />
+          </div>
+        </div>
+        <div id="login-error" class="error-msg hidden"></div>
+        <button type="submit" class="btn-primary" id="login-btn">
+          <span>Sign In</span>
+          <div class="btn-loader hidden" id="login-loader"></div>
+        </button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="register-form" class="auth-form hidden" onsubmit="handleRegister(event)">
+        <div class="form-group">
+          <label>Full Name</label>
+          <div class="input-wrapper">
+            <svg class="input-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            <input type="text" id="reg-name" placeholder="Enter your full name" required autocomplete="name" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Email Address</label>
+          <div class="input-wrapper">
+            <svg class="input-icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+            <input type="email" id="reg-email" placeholder="Enter your email" required autocomplete="email" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <div class="input-wrapper">
+            <svg class="input-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+            <input type="password" id="reg-password" placeholder="Create a password (min 6 chars)" required minlength="6" autocomplete="new-password" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Admin Code <span class="optional">(leave blank for regular user)</span></label>
+          <div class="input-wrapper">
+            <svg class="input-icon" viewBox="0 0 24 24"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+            <input type="text" id="reg-admincode" placeholder="Enter admin code if applicable" />
+          </div>
+        </div>
+        <div id="register-error" class="error-msg hidden"></div>
+        <button type="submit" class="btn-primary" id="register-btn">
+          <span>Create Account</span>
+          <div class="btn-loader hidden" id="register-loader"></div>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================
+       APP SECTION (Dashboard)
+       ============================ -->
+  <div id="app-section" class="app-wrapper hidden">
+
+    <!-- Sidebar -->
+    <aside class="sidebar glass" id="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-icon-sm">ID</div>
+        <span>IndraDatabase</span>
+      </div>
+      <nav class="sidebar-nav" id="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="user-info" id="sidebar-user"></div>
+        <button class="logout-btn" onclick="handleLogout()">
+          <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+          Logout
+        </button>
+      </div>
+    </aside>
+
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="topbar">
+        <button class="menu-btn" onclick="toggleSidebar()" aria-label="Toggle menu">
+          <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+        </button>
+        <div class="topbar-title" id="page-title">Dashboard</div>
+        <div class="role-badge" id="role-badge"></div>
+      </header>
+      <div class="page-content" id="page-content">
+        <div class="loading-overlay"><div class="spinner"></div></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============================
+       MODALS
+       ============================ -->
+
+  <!-- Add / Edit Student Modal -->
+  <div class="modal-overlay hidden" id="student-modal-overlay">
+    <div class="modal glass" id="student-modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Add New Student</h2>
+        <button class="modal-close" onclick="closeStudentModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="student-form" onsubmit="handleStudentSubmit(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Full Name *</label>
+              <input type="text" id="s-name" placeholder="Student full name" required />
+            </div>
+            <div class="form-group">
+              <label>Email *</label>
+              <input type="email" id="s-email" placeholder="student@email.com" required />
+            </div>
+            <div class="form-group">
+              <label>Phone</label>
+              <input type="tel" id="s-phone" placeholder="+91 XXXXX XXXXX" />
+            </div>
+            <div class="form-group">
+              <label>Date of Birth</label>
+              <input type="date" id="s-dob" />
+            </div>
+            <div class="form-group">
+              <label>Gender</label>
+              <select id="s-gender">
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+                <option value="Prefer not to say">Prefer not to say</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Course / Department *</label>
+              <select id="s-course" required>
+                <option value="">Select Course</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Mechanical Engineering">Mechanical Engineering</option>
+                <option value="Civil Engineering">Civil Engineering</option>
+                <option value="Business Administration">Business Administration</option>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Physics">Physics</option>
+                <option value="Chemistry">Chemistry</option>
+                <option value="Biology">Biology</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Semester / Year</label>
+              <select id="s-semester">
+                <option value="">Select Semester</option>
+                <option value="1st Semester">1st Semester</option>
+                <option value="2nd Semester">2nd Semester</option>
+                <option value="3rd Semester">3rd Semester</option>
+                <option value="4th Semester">4th Semester</option>
+                <option value="5th Semester">5th Semester</option>
+                <option value="6th Semester">6th Semester</option>
+                <option value="7th Semester">7th Semester</option>
+                <option value="8th Semester">8th Semester</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>GPA (0 – 10)</label>
+              <input type="number" id="s-gpa" placeholder="e.g. 8.5" min="0" max="10" step="0.1" />
+            </div>
+            <div class="form-group">
+              <label>Enrollment Date</label>
+              <input type="date" id="s-enrollment" />
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select id="s-status">
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Alumni">Alumni</option>
+                <option value="Suspended">Suspended</option>
+              </select>
+            </div>
+            <div class="form-group full-width">
+              <label>Address</label>
+              <textarea id="s-address" placeholder="Enter full address" rows="2"></textarea>
+            </div>
+          </div>
+          <div id="student-form-error" class="error-msg hidden"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" onclick="closeStudentModal()">Cancel</button>
+            <button type="submit" class="btn-primary" id="student-submit-btn">
+              <span id="student-submit-label">Save Student</span>
+              <div class="btn-loader hidden" id="student-submit-loader"></div>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Student Modal -->
+  <div class="modal-overlay hidden" id="view-modal-overlay">
+    <div class="modal glass" id="view-modal">
+      <div class="modal-header">
+        <h2>Student Profile</h2>
+        <button class="modal-close" onclick="closeViewModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body" id="view-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Confirm Delete Modal -->
+  <div class="modal-overlay hidden" id="delete-modal-overlay">
+    <div class="modal modal-sm glass">
+      <div class="modal-header">
+        <h2>Confirm Delete</h2>
+        <button class="modal-close" onclick="closeDeleteModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="delete-warning">
+          Are you sure you want to delete <strong id="delete-student-name"></strong>?
+          This action <strong>cannot be undone</strong>.
+        </p>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+          <button class="btn-danger" id="confirm-delete-btn" onclick="confirmDelete()">🗑️ Delete Student</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
