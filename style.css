@@ -298,12 +298,14 @@ input:focus, select:focus, textarea:focus {
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
   height: 100vh;
+  height: 100dvh;          /* mobile: excludes browser chrome bars */
   display: flex; flex-direction: column;
   border-right: 1px solid var(--glass-border);
   border-radius: 0;
   transition: transform 0.3s ease;
   z-index: 100;
-  background: rgba(5,8,20,0.85);
+  background: rgba(5,8,20,0.92);
+  overflow: hidden;        /* clip content, not footer */
 }
 
 .sidebar-logo {
@@ -726,6 +728,8 @@ tbody td { padding: 13px 18px; font-size: 14px; color: var(--text-primary); vert
 @media (max-width: 900px) {
   .sidebar {
     position: fixed; left: 0; top: 0;
+    height: 100vh;
+    height: 100dvh;          /* key fix: mobile browser chrome excluded */
     transform: translateX(-100%);
     box-shadow: 4px 0 40px rgba(0,0,0,0.5);
   }
