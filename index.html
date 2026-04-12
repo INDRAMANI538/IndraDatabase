@@ -310,8 +310,117 @@
     </div>
   </div>
 
+  <!-- ============================
+       CREATE GROUP MODAL
+       ============================ -->
+  <div class="modal-overlay hidden" id="group-modal-overlay">
+    <div class="modal glass">
+      <div class="modal-header">
+        <h2 id="group-modal-title">Create Group</h2>
+        <button class="modal-close" onclick="closeGroupModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="group-form" onsubmit="handleGroupSubmit(event)">
+          <div class="form-group">
+            <label>Group Name *</label>
+            <input type="text" id="grp-name" placeholder="e.g. Batch 2024, CS Students…" required />
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="grp-desc" placeholder="Brief description of this group…" rows="2"></textarea>
+          </div>
+          <div class="form-grid" style="grid-template-columns:1fr 1fr">
+            <div class="form-group">
+              <label>Emoji Icon</label>
+              <input type="text" id="grp-emoji" placeholder="👥" maxlength="2" style="font-size:1.4rem;text-align:center" />
+            </div>
+            <div class="form-group">
+              <label>Color Theme</label>
+              <div class="color-swatch-row">
+                <label class="color-swatch"><input type="radio" name="grp-color" value="#7c3aed" checked /><span style="background:linear-gradient(135deg,#7c3aed,#4f46e5)"></span></label>
+                <label class="color-swatch"><input type="radio" name="grp-color" value="#ec4899" /><span style="background:linear-gradient(135deg,#ec4899,#db2777)"></span></label>
+                <label class="color-swatch"><input type="radio" name="grp-color" value="#06b6d4" /><span style="background:linear-gradient(135deg,#06b6d4,#0ea5e9)"></span></label>
+                <label class="color-swatch"><input type="radio" name="grp-color" value="#10b981" /><span style="background:linear-gradient(135deg,#10b981,#059669)"></span></label>
+                <label class="color-swatch"><input type="radio" name="grp-color" value="#f59e0b" /><span style="background:linear-gradient(135deg,#f59e0b,#d97706)"></span></label>
+                <label class="color-swatch"><input type="radio" name="grp-color" value="#ef4444" /><span style="background:linear-gradient(135deg,#ef4444,#dc2626)"></span></label>
+              </div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" onclick="closeGroupModal()">Cancel</button>
+            <button type="submit" class="btn-primary" id="group-submit-btn">Create Group</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================
+       ADD MEMBERS MODAL
+       ============================ -->
+  <div class="modal-overlay hidden" id="add-members-modal-overlay">
+    <div class="modal glass">
+      <div class="modal-header">
+        <h2>Add Students to Group</h2>
+        <button class="modal-close" onclick="closeAddMembersModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="search-input-wrapper" style="margin-bottom:14px">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          <input type="text" placeholder="Filter students…" oninput="filterMembersList(this.value)" />
+        </div>
+        <div id="add-members-list" class="members-list"></div>
+        <div class="modal-actions" style="margin-top:16px">
+          <button class="btn-secondary" onclick="closeAddMembersModal()">Cancel</button>
+          <button class="btn-primary" id="add-members-btn" onclick="handleAddMembers()">Add Selected</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================
+       MAIL COMPOSE MODAL
+       ============================ -->
+  <div class="modal-overlay hidden" id="mail-modal-overlay">
+    <div class="modal glass">
+      <div class="modal-header">
+        <h2>📧 Send Email to Group</h2>
+        <button class="modal-close" onclick="closeMailModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="mail-meta">
+          <span class="mail-meta-label">Group:</span>
+          <strong id="mail-group-name"></strong>
+          <span class="mail-meta-badge" id="mail-recipient-count"></span>
+        </div>
+        <div id="mail-recipients" class="mail-recipients"></div>
+        <form id="mail-form" onsubmit="handleSendMail(event)">
+          <div class="form-group">
+            <label>Subject *</label>
+            <input type="text" id="mail-subject" placeholder="Email subject…" required />
+          </div>
+          <div class="form-group">
+            <label>Message * <span class="optional">(use {{name}} to personalise)</span></label>
+            <textarea id="mail-message" rows="7" placeholder="Dear {{name}},&#10;&#10;Your message here…" required></textarea>
+          </div>
+          <div id="mail-progress" class="mail-progress hidden">
+            <div class="progress-bar-wrap">
+              <div class="progress-bar" id="mail-progress-bar" style="width:0%"></div>
+            </div>
+            <div id="mail-progress-text" style="margin-top:6px;text-align:center;font-size:.85rem;color:var(--text-muted)"></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" onclick="closeMailModal()">Cancel</button>
+            <button type="submit" class="btn-primary" id="mail-send-btn">📧 Send Emails</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notifications -->
   <div class="toast-container" id="toast-container"></div>
+
 
   <script type="module" src="/src/main.js"></script>
 </body>
