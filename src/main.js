@@ -576,6 +576,27 @@ async function confirmDelete() {
 }
 
 // ============================================================
+// BODY SCROLL LOCK — prevents background shift when modal open
+// ============================================================
+let _scrollY = 0;
+function lockBodyScroll() {
+  _scrollY = window.scrollY;
+  document.body.style.position   = 'fixed';
+  document.body.style.top        = `-${_scrollY}px`;
+  document.body.style.left       = '0';
+  document.body.style.right      = '0';
+  document.body.style.overflowY  = 'scroll';
+}
+function unlockBodyScroll() {
+  document.body.style.position  = '';
+  document.body.style.top       = '';
+  document.body.style.left      = '';
+  document.body.style.right     = '';
+  document.body.style.overflowY = '';
+  window.scrollTo(0, _scrollY);
+}
+
+// ============================================================
 // MODALS — Add / Edit Student
 // ============================================================
 function openAddStudentModal() {
@@ -585,6 +606,7 @@ function openAddStudentModal() {
   document.getElementById('student-form').reset();
   clearErrors();
   document.getElementById('student-modal-overlay').classList.remove('hidden');
+  lockBodyScroll();
 }
 
 function openEditModal(studentId) {
@@ -606,10 +628,12 @@ function openEditModal(studentId) {
   document.getElementById('s-address').value    = s.address        || '';
   clearErrors();
   document.getElementById('student-modal-overlay').classList.remove('hidden');
+  lockBodyScroll();
 }
 
 function closeStudentModal() {
   document.getElementById('student-modal-overlay').classList.add('hidden');
+  unlockBodyScroll();
   editingStudentId = null;
   document.getElementById('student-form').reset();
   const btn = document.getElementById('student-submit-btn');
@@ -673,9 +697,13 @@ function renderViewModal(s) {
       <div class="profile-detail-item full"><label>Address</label><span>${escHtml(s.address || 'Not provided')}</span></div>
     </div>${adminActions}`;
   document.getElementById('view-modal-overlay').classList.remove('hidden');
+  lockBodyScroll();
 }
 
-function closeViewModal() { document.getElementById('view-modal-overlay').classList.add('hidden'); }
+function closeViewModal() {
+  document.getElementById('view-modal-overlay').classList.add('hidden');
+  unlockBodyScroll();
+}
 
 // ============================================================
 // MODALS — Delete Confirm
@@ -686,11 +714,13 @@ function openDeleteModal(studentId, studentName) {
   const btn = document.getElementById('confirm-delete-btn');
   btn.disabled = false; btn.textContent = '🗑️ Delete Student';
   document.getElementById('delete-modal-overlay').classList.remove('hidden');
+  lockBodyScroll();
 }
 
 function closeDeleteModal() {
   document.getElementById('delete-modal-overlay').classList.add('hidden');
   deletingStudentId = null;
+  unlockBodyScroll();
 }
 
 ['student-modal-overlay','view-modal-overlay','delete-modal-overlay','group-modal-overlay','add-members-modal-overlay','mail-modal-overlay'].forEach(id => {
