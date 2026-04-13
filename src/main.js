@@ -315,6 +315,7 @@ async function renderDashboard() {
         if (r.requestedField === 'phone') icon = '📞';
         if (r.requestedField === 'email') icon = '✉️';
         if (r.requestedField === 'address') icon = '🏠';
+        if (r.requestedField === 'prf') icon = '🆔';
         return `<span class="status-badge ${r.status}" style="font-size:10px; padding:2px 4px;" title="${r.requestedField}: ${r.status}">${icon}</span>`;
       }).join(' ');
       return `<div style="display:flex;gap:4px;flex-wrap:wrap;">${badgesHTML}</div>`;
@@ -480,6 +481,7 @@ function renderStudentsList() {
         if (r.requestedField === 'phone') icon = '📞';
         if (r.requestedField === 'email') icon = '✉️';
         if (r.requestedField === 'address') icon = '🏠';
+        if (r.requestedField === 'prf') icon = '🆔';
         return `<span class="status-badge ${r.status}" style="font-size:10px; padding:2px 4px;" title="${r.requestedField}: ${r.status}">${icon}</span>`;
       }).join(' ');
       return `<div style="display:flex;gap:4px;flex-wrap:wrap;">${badgesHTML}</div>`;
@@ -604,6 +606,7 @@ async function handleStudentSubmit(e) {
     fullName: document.getElementById('s-name').value.trim(),
     email: document.getElementById('s-email').value.trim(),
     phone: document.getElementById('s-phone').value.trim(),
+    prf: document.getElementById('s-prf').value.trim(),
     dob: document.getElementById('s-dob').value,
     gender: document.getElementById('s-gender').value,
     course: document.getElementById('s-course').value,
@@ -690,6 +693,24 @@ function unlockBodyScroll() {
 // ============================================================
 // MODALS — Add / Edit Student
 // ============================================================
+function formatPrf(input) {
+  // Remove all non-digits
+  let val = input.value.replace(/\D/g, '');
+  
+  if (val.length > 6) {
+    val = val.substring(0, 6);
+  }
+  
+  if (val.length > 2) {
+    input.value = `NIU-${val.substring(0, 2)}-${val.substring(2)}`;
+  } else if (val.length > 0) {
+    input.value = `NIU-${val}`;
+  } else {
+    // If they delete everything, just leave 'NIU-' or empty
+    input.value = '';
+  }
+}
+
 function openAddStudentModal() {
   editingStudentId = null;
   document.getElementById('modal-title').textContent = 'Add New Student';
@@ -709,6 +730,7 @@ function openEditModal(studentId) {
   document.getElementById('s-name').value = s.fullName || '';
   document.getElementById('s-email').value = s.email || '';
   document.getElementById('s-phone').value = s.phone || '';
+  document.getElementById('s-prf').value = s.prf || '';
   document.getElementById('s-dob').value = s.dob || '';
   document.getElementById('s-gender').value = s.gender || '';
   document.getElementById('s-course').value = s.course || '';
@@ -805,6 +827,7 @@ function renderViewModal(s) {
   const phoneHTML = getFieldAccessHTML('phone', s.phone, 'Phone', s.phone ? s.phone.substring(0, 3) + '********' : '');
   const emailHTML = getFieldAccessHTML('email', s.email, 'Email', s.email ? s.email.substring(0, 3) + '***@***.com' : '');
   const addressHTML = getFieldAccessHTML('address', s.address, 'Address', '[Protected Address]');
+  const prfHTML = getFieldAccessHTML('prf', s.prf, 'PRF', 'NIU-**-****');
 
   const isMember = currentUserRole === 'user' || currentUserRole === 'member';
 
@@ -812,6 +835,7 @@ function renderViewModal(s) {
     <div class="profile-details-grid">
       ${emailHTML}
       ${phoneHTML}
+      ${prfHTML}
       ${addressHTML}
       <div class="profile-detail-item"><label>Course / Department</label><span>${escHtml(s.course || 'Not provided')}</span></div>
       <div class="profile-detail-item"><label>Status</label><span>${escHtml(s.status || 'Active')}</span></div>
@@ -819,6 +843,7 @@ function renderViewModal(s) {
     <div class="profile-details-grid">
       ${emailHTML}
       ${phoneHTML}
+      ${prfHTML}
       <div class="profile-detail-item"><label>Date of Birth</label><span>${s.dob ? formatDate(s.dob) : 'Not provided'}</span></div>
       <div class="profile-detail-item"><label>Gender</label><span>${escHtml(s.gender || 'Not provided')}</span></div>
       <div class="profile-detail-item"><label>Course / Department</label><span>${escHtml(s.course || 'Not provided')}</span></div>
@@ -1559,4 +1584,5 @@ Object.assign(window, {
   openMailModal, closeMailModal, handleSendMail,
   // Admin & RBAC
   updateUserRole, updateAccessRequestStatus, requestFieldAccess,
+  formatPrf,
 });
