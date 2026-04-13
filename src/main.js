@@ -11,7 +11,7 @@ import {
 import {
   collection, doc, getDocs, addDoc, updateDoc, deleteDoc,
   setDoc, getDoc, query, orderBy, serverTimestamp,
-  arrayUnion, arrayRemove, getDocsFromServer,
+  arrayUnion, arrayRemove, getDocsFromServer, where,
 } from 'firebase/firestore';
 
 // ============================================================
@@ -43,6 +43,9 @@ let groupsCache = [];
 let currentGroupId = null;
 let addMembersGrpId = null;
 let mailGroupId = null;
+
+// Access Request state
+let accessRequestsCache = [];
 
 // ============================================================
 // AUTH — TAB SWITCHING
@@ -121,7 +124,7 @@ async function handleRegister(e) {
 async function handleLogout() {
   await signOut(auth);
   currentUser = currentUserRole = currentUserName = null;
-  studentsCache = []; groupsCache = [];
+  studentsCache = []; groupsCache = []; accessRequestsCache = [];
   showAuthSection();
   showToast('👋 Logged out successfully.', 'info');
 }
@@ -144,6 +147,13 @@ onAuthStateChanged(auth, async (user) => {
       if (snap.exists()) {
         currentUserRole = snap.data().role;
         currentUserName = snap.data().name;
+
+        // Fetch access requests if not admin/core_member
+        if (currentUserRole === 'user' || currentUserRole === 'member') {
+          const reqSnap = await getDocs(query(collection(db, 'accessRequests'), where('requesterUid', '==', user.uid)));
+          accessRequestsCache = reqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        }
+
         showApp(currentUserName, currentUserRole);
         hideSplash();
         navigateTo('dashboard');
@@ -223,10 +233,18 @@ function buildSidebarNav(role) {
       <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
       Groups &amp; Mail
     </div>
-    <div class="nav-section-title">Actions</div>
+    <div class="nav-section-title">Admin Actions</div>
     <div class="nav-item" id="nav-add" onclick="openAddStudentModal()">
       <svg viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
       Add Student
+    </div>
+    <div class="nav-item" id="nav-admin-control" onclick="navigateTo('admin-control')">
+      <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+      Admin Control
+    </div>
+    <div class="nav-item" id="nav-user-requests" onclick="navigateTo('user-requests')">
+      <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/></svg>
+      User Requests
     </div>
   ` : '';
 
@@ -262,6 +280,8 @@ function navigateTo(page) {
   if (page === 'dashboard') renderDashboard();
   else if (page === 'students') renderStudentsPage();
   else if (page === 'groups') renderGroupsPage();
+  else if (page === 'admin-control') renderAdminControlPage();
+  else if (page === 'user-requests') renderUserRequestsPage();
 
   closeSidebarMobile();
 }
@@ -282,6 +302,23 @@ async function renderDashboard() {
       .slice(0, 5);
     const addBtn = currentUserRole === 'admin'
       ? `<button class="btn-small primary" onclick="openAddStudentModal()">+ Add Student</button>` : '';
+
+    const isAdvanced = currentUserRole === 'admin' || currentUserRole === 'core_member';
+    
+    // Helper to generate mini badges for requested fields
+    const getAccessBadgesHTML = (studentId) => {
+      const reqs = accessRequestsCache.filter(r => r.targetStudentId === studentId);
+      if (reqs.length === 0) return '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+      
+      const badgesHTML = reqs.map(r => {
+        let icon = '';
+        if (r.requestedField === 'phone') icon = '📞';
+        if (r.requestedField === 'email') icon = '✉️';
+        if (r.requestedField === 'address') icon = '🏠';
+        return `<span class="status-badge ${r.status}" style="font-size:10px; padding:2px 4px;" title="${r.requestedField}: ${r.status}">${icon}</span>`;
+      }).join(' ');
+      return `<div style="display:flex;gap:4px;flex-wrap:wrap;">${badgesHTML}</div>`;
+    };
 
     document.getElementById('page-content').innerHTML = `
       <div class="dashboard-header">
@@ -313,19 +350,29 @@ async function renderDashboard() {
       <div class="table-wrapper">
         ${recent.length === 0 ? emptyStateHTML('No students yet', 'Start by adding your first student.') : `
           <table>
-            <thead><tr><th>Student</th><th>Course</th><th>Semester</th><th>GPA</th><th>Status</th></tr></thead>
+            <thead><tr>
+              <th>Student</th><th>Course</th><th>Status</th>
+              ${isAdvanced ? '<th>Semester</th><th>GPA</th>' : '<th>Access</th>'}
+            </tr></thead>
             <tbody>
-              ${recent.map(s => `
-                <tr onclick="openViewModal('${s.id}')">
-                  <td><div class="student-cell">
-                    <div class="student-avatar" style="background:${getAvatarColor(s.fullName)}">${getInitials(s.fullName)}</div>
-                    <div><div class="student-name">${escHtml(s.fullName)}</div><div class="student-id">${escHtml(s.studentId || '')}</div></div>
-                  </div></td>
-                  <td>${escHtml(s.course || '—')}</td>
-                  <td>${escHtml(s.semester || '—')}</td>
-                  <td>${s.gpa != null ? s.gpa + '/10' : '—'}</td>
-                  <td><span class="status-badge ${statusClass(s.status)}">${escHtml(s.status || 'Active')}</span></td>
-                </tr>`).join('')}
+              ${recent.map(s => {
+                const advCells = isAdvanced ? `<td>${escHtml(s.semester || '—')}</td><td>${s.gpa != null ? s.gpa + '/10' : '—'}</td>` : '';
+                const accCell = !isAdvanced ? `<td>${getAccessBadgesHTML(s.id)}</td>` : '';
+                const hasAccess = (currentUserRole === 'user' || currentUserRole === 'member') && accessRequestsCache.some(r => r.targetStudentId === s.id && r.status === 'approved');
+                const lockIcon = hasAccess ? `<span style="font-size:12px; margin-left:6px;" title="Access Approved">🔓</span>` : '';
+                
+                return `
+                  <tr onclick="openViewModal('${s.id}')" style="cursor:pointer;">
+                    <td><div class="student-cell">
+                      <div class="student-avatar" style="background:${getAvatarColor(s.fullName)}">${getInitials(s.fullName)}</div>
+                      <div><div class="student-name">${escHtml(s.fullName)}${lockIcon}</div><div class="student-id">${escHtml(s.studentId || '')}</div></div>
+                    </div></td>
+                    <td>${escHtml(s.course || '—')}</td>
+                    <td><span class="status-badge ${statusClass(s.status)}">${escHtml(s.status || 'Active')}</span></td>
+                    ${advCells}
+                    ${accCell}
+                  </tr>`;
+              }).join('')}
             </tbody>
           </table>`}
       </div>`;
@@ -419,36 +466,65 @@ function renderStudentsList() {
     </div>`;
 
   if (currentView === 'table') {
-    // Admins see all columns; viewers see only Name, Email, Course, Status
+    // Admins and Core Members see extra columns. Members see only basic ones.
+    const isAdvanced = currentUserRole === 'admin' || currentUserRole === 'core_member';
     const isAdmin = currentUserRole === 'admin';
-    const adminCols = isAdmin ? '<th>Semester</th><th>GPA</th><th>Phone</th><th>Actions</th>' : '';
+    
+    // Helper to generate mini badges for requested fields for normal members
+    const getAccessBadgesHTML = (studentId) => {
+      const reqs = accessRequestsCache.filter(r => r.targetStudentId === studentId);
+      if (reqs.length === 0) return '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+      
+      const badgesHTML = reqs.map(r => {
+        let icon = '';
+        if (r.requestedField === 'phone') icon = '📞';
+        if (r.requestedField === 'email') icon = '✉️';
+        if (r.requestedField === 'address') icon = '🏠';
+        return `<span class="status-badge ${r.status}" style="font-size:10px; padding:2px 4px;" title="${r.requestedField}: ${r.status}">${icon}</span>`;
+      }).join(' ');
+      return `<div style="display:flex;gap:4px;flex-wrap:wrap;">${badgesHTML}</div>`;
+    };
+
+    const adminCols = isAdmin ? '<th>Actions</th>' : '';
+    const advancedCols = isAdvanced ? `<th>Semester</th><th>GPA</th><th>Phone</th>${adminCols}` : '<th>Access</th>';
+
     const rows = paginated.map(s => {
       const adminCells = isAdmin ? `
-        <td>${escHtml(s.semester || '—')}</td>
-        <td>${s.gpa != null ? s.gpa + '/10' : '—'}</td>
-        <td>${escHtml(s.phone || '—')}</td>
         <td><div class="table-actions">
           <button class="btn-icon edit"   onclick="event.stopPropagation();openEditModal('${s.id}')"   title="Edit"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
           <button class="btn-icon delete" onclick="event.stopPropagation();openDeleteModal('${s.id}','${escAttr(s.fullName)}')" title="Delete"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
         </div></td>` : '';
-      // Non-admins: row is not clickable (no view modal)
-      const rowClick = isAdmin ? `onclick="openViewModal('${s.id}')"` : '';
+        
+      const advancedCells = isAdvanced ? `
+        <td>${escHtml(s.semester || '—')}</td>
+        <td>${s.gpa != null ? s.gpa + '/10' : '—'}</td>
+        <td>${currentUserRole === 'core_member' ? escHtml(s.phone || '—') : escHtml(s.phone || '—')}</td>
+        ${adminCells}
+      ` : `<td>${getAccessBadgesHTML(s.id)}</td>`;
+
+      // Check if user has approved access for this student
+      const hasAccess = (currentUserRole === 'user' || currentUserRole === 'member') && 
+        accessRequestsCache.some(r => r.targetStudentId === s.id && r.status === 'approved');
+      const accessBadge = hasAccess ? `<span style="font-size:12px; margin-left:6px;" title="Access Approved">🔓</span>` : '';
+
+      // Both Admins and Core Members can click rows to view the modal
+      const rowClick = isAdvanced ? `onclick="openViewModal('${s.id}')"` : '';
       return `
-        <tr ${rowClick} style="${isAdmin ? 'cursor:pointer' : ''}">
+        <tr ${rowClick} style="${isAdvanced ? 'cursor:pointer' : ''}">
           <td><div class="student-cell">
             <div class="student-avatar" style="background:${getAvatarColor(s.fullName)}">${getInitials(s.fullName)}</div>
-            <div><div class="student-name">${escHtml(s.fullName)}</div><div class="student-id">${escHtml(s.studentId || '')}</div></div>
+            <div><div class="student-name">${escHtml(s.fullName)}${accessBadge}</div><div class="student-id">${escHtml(s.studentId || '')}</div></div>
           </div></td>
           <td>${escHtml(s.email || '—')}</td>
           <td>${escHtml(s.course || '—')}</td>
           <td><span class="status-badge ${statusClass(s.status)}">${escHtml(s.status || 'Active')}</span></td>
-          ${adminCells}
+          ${advancedCells}
         </tr>`;
     }).join('');
     listEl.innerHTML = `
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Student</th><th>Email</th><th>Course</th><th>Status</th>${adminCols}</tr></thead>
+          <thead><tr><th>Student</th><th>Email</th><th>Course</th><th>Status</th>${advancedCols}</tr></thead>
           <tbody>${rows}</tbody>
         </table>${paginationHtml}
       </div>`;
@@ -459,19 +535,25 @@ function renderStudentsList() {
           <button class="btn-icon edit"   onclick="event.stopPropagation();openEditModal('${s.id}')"   title="Edit"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
           <button class="btn-icon delete" onclick="event.stopPropagation();openDeleteModal('${s.id}','${escAttr(s.fullName)}')" title="Delete"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
         </div>` : '';
+      const hasAccess = (currentUserRole === 'user' || currentUserRole === 'member') && 
+        accessRequestsCache.some(r => r.targetStudentId === s.id && r.status === 'approved');
+      const accessBadge = hasAccess ? `<span style="font-size:12px; margin-left:6px;" title="Access Approved">🔓</span>` : '';
+
       return `
-        <div class="student-card" ${currentUserRole === 'admin' ? `onclick="openViewModal('${s.id}')"` : ''}>
+        <div class="student-card" ${isAdvanced ? `onclick="openViewModal('${s.id}')"` : ''}>
           <div class="student-card-header">
             <div class="student-card-avatar" style="background:${getAvatarColor(s.fullName)}">${getInitials(s.fullName)}</div>
-            <div class="student-card-info"><h4>${escHtml(s.fullName)}</h4><p>${escHtml(s.email || '')}</p></div>
+            <div class="student-card-info"><h4>${escHtml(s.fullName)}${accessBadge}</h4><p>${escHtml(s.email || '')}</p></div>
           </div>
           <div class="student-card-detail">
             <div class="student-card-row"><span>Course</span><span>${escHtml(s.course || '—')}</span></div>
             <div class="student-card-row"><span>Status</span><span class="status-badge ${statusClass(s.status)}">${escHtml(s.status || 'Active')}</span></div>
-            ${currentUserRole === 'admin' ? `
+            ${isAdvanced ? `
             <div class="student-card-row"><span>Semester</span><span>${escHtml(s.semester || '—')}</span></div>
             <div class="student-card-row"><span>GPA</span><span>${s.gpa != null ? s.gpa + '/10' : '—'}</span></div>
-            ` : ''}
+            ` : `
+            <div class="student-card-row"><span>Access</span><span>${getAccessBadgesHTML(s.id)}</span></div>
+            `}
           </div>
           <div class="student-card-footer">
             ${adminActions}
@@ -685,16 +767,58 @@ function renderViewModal(s) {
         </div>`;
     }
   }
-  // Viewer mode: only show Name, Email, Course, Status
-  const isViewer = currentUserRole !== 'admin';
-  const detailsHTML = isViewer ? `
+  // Handle Field Visibility based on Role and Requests
+  const getFieldAccessHTML = (fieldName, fieldValue, labelText, maskText) => {
+    let fieldHTML = `<div class="profile-detail-item"><label>${labelText}</label><span>${escHtml(fieldValue || 'Not provided')}</span></div>`;
+    
+    if (currentUserRole === 'user' || currentUserRole === 'member') {
+      const existingReq = accessRequestsCache.find(r => r.targetStudentId === s.id && r.requestedField === fieldName);
+      
+      if (!fieldValue) {
+        fieldHTML = `<div class="profile-detail-item"><label>${labelText}</label><span>Not provided</span></div>`;
+      } else if (existingReq) {
+        if (existingReq.status === 'approved') {
+          fieldHTML = `<div class="profile-detail-item"><label>${labelText}</label><span class="locked-data" style="border-color:rgba(16,185,129,0.3);color:var(--text-primary);">🔓 ${escHtml(fieldValue)}</span></div>`;
+        } else if (existingReq.status === 'pending') {
+          fieldHTML = `<div class="profile-detail-item"><label>${labelText}</label><span>${maskText} <span class="status-badge pending" style="margin-left:6px;font-size:11px;">Pending...</span></span></div>`;
+        } else { // Rejected
+          fieldHTML = `
+            <div class="profile-detail-item"><label>${labelText}</label>
+            <span style="display:flex;align-items:center;gap:10px;">
+              <span>${maskText} <span class="status-badge rejected" style="margin-left:6px;font-size:11px;">Rejected</span></span>
+              <button id="req-${fieldName}-btn" class="btn-small" onclick="requestFieldAccess('${s.id}', '${escAttr(s.fullName)}', '${fieldName}')" style="padding: 3px 8px; font-size: 11px;">Re-Request</button>
+            </span></div>`;
+        }
+      } else {
+        // No request exists, show Request button
+        fieldHTML = `
+          <div class="profile-detail-item"><label>${labelText}</label>
+          <span style="display:flex;align-items:center;gap:10px;">
+            ${maskText} 
+            <button id="req-${fieldName}-btn" class="btn-small" onclick="requestFieldAccess('${s.id}', '${escAttr(s.fullName)}', '${fieldName}')">Request Access</button>
+          </span></div>`;
+      }
+    }
+    return fieldHTML;
+  };
+
+  const phoneHTML = getFieldAccessHTML('phone', s.phone, 'Phone', s.phone ? s.phone.substring(0, 3) + '********' : '');
+  const emailHTML = getFieldAccessHTML('email', s.email, 'Email', s.email ? s.email.substring(0, 3) + '***@***.com' : '');
+  const addressHTML = getFieldAccessHTML('address', s.address, 'Address', '[Protected Address]');
+
+  const isMember = currentUserRole === 'user' || currentUserRole === 'member';
+
+  const detailsHTML = isMember ? `
     <div class="profile-details-grid">
-      <div class="profile-detail-item"><label>Email</label><span>${escHtml(s.email || 'Not provided')}</span></div>
+      ${emailHTML}
+      ${phoneHTML}
+      ${addressHTML}
       <div class="profile-detail-item"><label>Course / Department</label><span>${escHtml(s.course || 'Not provided')}</span></div>
       <div class="profile-detail-item"><label>Status</label><span>${escHtml(s.status || 'Active')}</span></div>
     </div>` : `
     <div class="profile-details-grid">
-      <div class="profile-detail-item"><label>Phone</label><span>${escHtml(s.phone || 'Not provided')}</span></div>
+      ${emailHTML}
+      ${phoneHTML}
       <div class="profile-detail-item"><label>Date of Birth</label><span>${s.dob ? formatDate(s.dob) : 'Not provided'}</span></div>
       <div class="profile-detail-item"><label>Gender</label><span>${escHtml(s.gender || 'Not provided')}</span></div>
       <div class="profile-detail-item"><label>Course / Department</label><span>${escHtml(s.course || 'Not provided')}</span></div>
@@ -702,7 +826,7 @@ function renderViewModal(s) {
       <div class="profile-detail-item"><label>GPA</label><span>${s.gpa != null ? s.gpa + ' / 10' : 'Not provided'}</span></div>
       <div class="profile-detail-item"><label>Enrollment Date</label><span>${s.enrollmentDate ? formatDate(s.enrollmentDate) : 'Not provided'}</span></div>
       <div class="profile-detail-item"><label>Status</label><span>${escHtml(s.status || 'Active')}</span></div>
-      <div class="profile-detail-item full"><label>Address</label><span>${escHtml(s.address || 'Not provided')}</span></div>
+      ${addressHTML}
     </div>${adminActions}`;
 
   document.getElementById('view-modal-body').innerHTML = `
@@ -1229,6 +1353,190 @@ async function handleSendMail(e) {
 }
 
 // ============================================================
+// ADMIN CONTROL PAGE
+// ============================================================
+async function renderAdminControlPage() {
+  document.getElementById('page-content').innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+  try {
+    const snap = await getDocs(collection(db, 'users'));
+    const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // Convert old 'user' role to 'member' for display
+    const rows = users.map(u => {
+      const displayRole = u.role === 'admin' ? 'admin' : (u.role === 'core_member' ? 'core_member' : 'member');
+      const isMe = u.id === currentUser.uid;
+      const selectHtml = isMe ? `<span class="status-badge approved">Admin (You)</span>` : `
+        <select class="admin-role-select" onchange="updateUserRole('${u.id}', this.value)">
+          <option value="user" ${displayRole === 'member' ? 'selected' : ''}>Member</option>
+          <option value="core_member" ${displayRole === 'core_member' ? 'selected' : ''}>Core Member</option>
+          <option value="admin" ${displayRole === 'admin' ? 'selected' : ''}>Admin</option>
+        </select>`;
+
+      return `
+        <tr>
+          <td><div class="student-cell">
+            <div class="student-avatar sm" style="background:${getAvatarColor(u.name)}">${getInitials(u.name)}</div>
+            <div style="font-weight:500;">${escHtml(u.name || 'Unknown')}</div>
+          </div></td>
+          <td>${escHtml(u.email)}</td>
+          <td>${selectHtml}</td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('page-content').innerHTML = `
+      <div class="page-header"><h2>Admin Control — Manage Roles</h2></div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>User</th><th>Email</th><th>Role Access</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } catch (err) {
+    console.error('Error fetching users:', err);
+    document.getElementById('page-content').innerHTML = `<div class="empty-state"><p style="color:var(--error)">Failed to load users.</p></div>`;
+  }
+}
+
+async function updateUserRole(uid, newRole) {
+  try {
+    await updateDoc(doc(db, 'users', uid), { role: newRole });
+    showToast('Role updated successfully.', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to update role.', 'error');
+  }
+}
+
+// ============================================================
+// USER REQUESTS PAGE (Field Access Visibility)
+// ============================================================
+async function renderUserRequestsPage() {
+  document.getElementById('page-content').innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+  try {
+    const q = query(collection(db, 'accessRequests'), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    const requests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    if (requests.length === 0) {
+      document.getElementById('page-content').innerHTML = `
+        <div class="page-header"><h2>User Requests</h2></div>
+        <div class="empty-state"><h3>No Requests</h3><p>There are no pending or approved field access requests.</p></div>`;
+      return;
+    }
+
+    // Group by Target Student and then by Requester
+    const grouped = {};
+    requests.forEach(r => {
+      const key = `${r.targetStudentId}_${r.requesterUid}`;
+      if (!grouped[key]) {
+        grouped[key] = {
+          targetName: r.targetStudentName,
+          requesterName: r.requesterName,
+          reqs: []
+        };
+      }
+      grouped[key].reqs.push(r);
+    });
+
+    const rowsHTML = Object.values(grouped).map(group => {
+      const fieldRows = group.reqs.map(r => {
+        let actions = '';
+        if (r.status === 'pending') {
+          actions = `
+            <button class="btn-small primary" onclick="updateAccessRequestStatus('${r.id}', 'approved')" style="padding:4px 8px;font-size:12px;">Approve</button>
+            <button class="btn-small" onclick="updateAccessRequestStatus('${r.id}', 'rejected')" style="padding:4px 8px;font-size:12px;background:rgba(239,68,68,0.2);color:#f87171;">Reject</button>`;
+        } else if (r.status === 'approved') {
+          actions = `<button class="btn-small" onclick="updateAccessRequestStatus('${r.id}', 'revoked')" style="padding:4px 8px;font-size:12px;opacity:0.7;">Revoke</button>`;
+        }
+
+        return `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding: 6px 0; border-bottom: 1px dotted rgba(255,255,255,0.1);">
+            <div style="flex:1;">
+              <span style="font-weight:600; text-transform:capitalize;">${r.requestedField}</span>
+              <span class="status-badge ${r.status}" style="margin-left:8px;">${r.status}</span>
+            </div>
+            <div style="display:flex;gap:6px;">${actions}</div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="student-card" style="margin-bottom:16px;">
+          <div class="student-card-header" style="border-bottom: 1px solid var(--glass-border); padding-bottom: 12px; margin-bottom: 12px;">
+            <div class="student-card-info">
+              <h4 style="color:var(--text-secondary); font-size:13px; font-weight:normal; margin-bottom:4px;">Requested By: <span style="color:var(--text-primary);font-weight:600;">${escHtml(group.requesterName)}</span></h4>
+              <h4 style="color:var(--text-secondary); font-size:13px; font-weight:normal;">Target Student: <span style="color:var(--text-primary);font-weight:600;">${escHtml(group.targetName)}</span></h4>
+            </div>
+          </div>
+          <div>
+            ${fieldRows}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    document.getElementById('page-content').innerHTML = `
+      <div class="page-header"><h2>User Requests — Access Controls</h2></div>
+      <div class="groups-grid">
+        ${rowsHTML}
+      </div>`;
+  } catch (err) {
+    console.error('Error fetching requests:', err);
+    document.getElementById('page-content').innerHTML = `<div class="empty-state"><p style="color:var(--error)">Failed to load requests.</p></div>`;
+  }
+}
+
+async function updateAccessRequestStatus(reqId, newStatus) {
+  try {
+    if (newStatus === 'revoked') {
+      await deleteDoc(doc(db, 'accessRequests', reqId));
+      showToast('Access revoked and request deleted.', 'info');
+    } else {
+      await updateDoc(doc(db, 'accessRequests', reqId), { status: newStatus });
+      showToast(`Request marked as ${newStatus}.`, 'success');
+    }
+    renderUserRequestsPage();
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to update request.', 'error');
+  }
+}
+
+async function requestFieldAccess(studentId, studentName, fieldName) {
+  try {
+    const btn = document.getElementById(`req-${fieldName}-btn`);
+    if (btn) btn.disabled = true;
+    
+    // Check if there is an existing rejected request
+    const existingIndex = accessRequestsCache.findIndex(r => r.targetStudentId === studentId && r.requestedField === fieldName && r.requesterUid === currentUser.uid);
+    
+    if (existingIndex > -1) {
+      const existingDocId = accessRequestsCache[existingIndex].id;
+      await updateDoc(doc(db, 'accessRequests', existingDocId), { status: 'pending', createdAt: serverTimestamp() });
+      accessRequestsCache[existingIndex].status = 'pending';
+    } else {
+      const newReq = {
+        requesterUid: currentUser.uid,
+        requesterName: currentUserName,
+        targetStudentId: studentId,
+        targetStudentName: studentName,
+        requestedField: fieldName,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+      };
+      const docRef = await addDoc(collection(db, 'accessRequests'), newReq);
+      accessRequestsCache.push({ id: docRef.id, ...newReq });
+    }
+    
+    showToast(`${fieldName} access requested.`, 'success');
+    closeViewModal();
+  } catch (err) {
+    console.error('Request failed:', err);
+    showToast('Failed to submit request.', 'error');
+  }
+}
+
+// ============================================================
 // EXPOSE TO GLOBAL SCOPE
 // ============================================================
 Object.assign(window, {
@@ -1249,4 +1557,6 @@ Object.assign(window, {
   removeFromGroup,
   // Mail
   openMailModal, closeMailModal, handleSendMail,
+  // Admin & RBAC
+  updateUserRole, updateAccessRequestStatus, requestFieldAccess,
 });

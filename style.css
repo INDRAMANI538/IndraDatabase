@@ -922,3 +922,33 @@ tbody td { padding: 13px 18px; font-size: 14px; color: var(--text-primary); vert
   border-radius: 3px; transition: width 0.3s ease;
 }
 .btn-small:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+/* ============================================================
+   ROLE & REQUEST BADGES (Phone Visiblity)
+   ============================================================ */
+.locked-data {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.05);
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  border: 1px dashed var(--glass-border);
+  font-family: monospace;
+  color: var(--text-muted);
+}
+.role-badge.core_member { background: rgba(5,150,105,0.15); color: #34d399; border-color: rgba(52,211,153,0.3); }
+.status-badge.pending { background: rgba(245,158,11,0.15); color: #fbbf24; border-color: rgba(251,191,36,0.2); }
+.status-badge.approved { background: rgba(16,185,129,0.15); color: #34d399; border-color: rgba(52,211,153,0.2); }
+.status-badge.rejected { background: rgba(239,68,68,0.15); color: #f87171; border-color: rgba(248,113,113,0.2); }
+.status-badge.revoked { background: rgba(107,114,128,0.15); color: #9ca3af; border-color: rgba(156,163,175,0.2); }
+
+.admin-role-select {
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  width: auto;
+}
