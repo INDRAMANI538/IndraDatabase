@@ -1415,7 +1415,7 @@ async function renderUserRequestsPage() {
   try {
     const q = query(collection(db, 'accessRequests'), orderBy('createdAt', 'desc'));
     const snap = await getDocs(q);
-    const requests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const requests = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status !== 'rejected');
 
     if (requests.length === 0) {
       document.getElementById('page-content').innerHTML = `
