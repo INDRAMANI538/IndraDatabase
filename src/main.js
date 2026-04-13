@@ -563,10 +563,22 @@ async function confirmDelete() {
   const btn = document.getElementById('confirm-delete-btn');
   btn.disabled = true; btn.textContent = 'Deleting…';
   try {
+    // 1. Remove from every group that contains this student
+    if (!groupsCache.length) await fetchAllGroups();
+    const groupUpdates = groupsCache
+      .filter(g => (g.studentIds || []).includes(deletingStudentId))
+      .map(g => updateDoc(doc(db, 'groups', g.id), { studentIds: arrayRemove(deletingStudentId) }));
+    if (groupUpdates.length) await Promise.all(groupUpdates);
+
+    // 2. Delete the student document
     await deleteDoc(doc(db, 'students', deletingStudentId));
     showToast('🗑️ Student removed.', 'info');
     closeDeleteModal();
     studentsCache = await fetchAllStudents();
+    // Refresh local groupsCache counts too
+    groupsCache.forEach(g => {
+      g.studentIds = (g.studentIds || []).filter(id => id !== deletingStudentId);
+    });
     if (currentPage === 'dashboard') renderDashboard();
     else renderStudentsList();
   } catch (err) {
@@ -844,9 +856,14 @@ function colorToGradient(hex) {
 // ============================================================
 // GROUPS PAGE
 // ============================================================
+// In renderGroupsPage, also fetch students so counts are accurate
 async function renderGroupsPage() {
   try {
-    const groups = await fetchAllGroups();
+    const [groups] = await Promise.all([
+      fetchAllGroups(),
+      studentsCache.length ? Promise.resolve() : fetchAllStudents().then(s => { studentsCache = s; }),
+    ]);
+    const existingIds = new Set(studentsCache.map(s => s.id));
 
     document.getElementById('page-content').innerHTML = `
       <div class="page-header">
@@ -862,7 +879,7 @@ async function renderGroupsPage() {
             <p>Create your first group to start organizing students and sending bulk emails.</p>
             <button class="btn-small primary" onclick="openCreateGroupModal()" style="margin-top:16px">+ Create Group</button>
           </div>`
-        : `<div class="groups-grid">${groups.map(g => groupCardHTML(g)).join('')}</div>`}
+        : `<div class="groups-grid">${groups.map(g => groupCardHTML(g, existingIds)).join('')}</div>`}
     `;
   } catch (err) {
     console.error(err);
@@ -871,8 +888,12 @@ async function renderGroupsPage() {
   }
 }
 
-function groupCardHTML(g) {
-  const count = (g.studentIds || []).length;
+function groupCardHTML(g, existingIds) {
+  // Only count student IDs that still exist in the database
+  const validIds = existingIds
+    ? (g.studentIds || []).filter(id => existingIds.has(id))
+    : (g.studentIds || []);
+  const count = validIds.length;
   return `
     <div class="group-card" onclick="openGroupDetail('${g.id}')">
       <div class="group-card-header">
