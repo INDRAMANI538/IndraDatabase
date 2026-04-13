@@ -11,38 +11,38 @@ import {
 import {
   collection, doc, getDocs, addDoc, updateDoc, deleteDoc,
   setDoc, getDoc, query, orderBy, serverTimestamp,
-  arrayUnion, arrayRemove,
+  arrayUnion, arrayRemove, getDocsFromServer,
 } from 'firebase/firestore';
 
 // ============================================================
 // CONSTANTS & STATE
 // ============================================================
 const ADMIN_CODE = 'Indramani$1*';
-const PAGE_SIZE  = 10;
+const PAGE_SIZE = 10;
 
 // Initialize EmailJS once at startup
 const _ejsPublicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 if (_ejsPublicKey) emailjs.init({ publicKey: _ejsPublicKey });
 
 
-let currentUser      = null;
-let currentUserRole  = null;
-let currentUserName  = null;
-let currentPage      = 'dashboard';
+let currentUser = null;
+let currentUserRole = null;
+let currentUserName = null;
+let currentPage = 'dashboard';
 let editingStudentId = null;
-let deletingStudentId= null;
-let studentsCache    = [];
-let currentView      = 'table';
-let searchQuery      = '';
-let filterCourse     = '';
-let filterStatus     = '';
-let currentPageNum   = 1;
+let deletingStudentId = null;
+let studentsCache = [];
+let currentView = 'table';
+let searchQuery = '';
+let filterCourse = '';
+let filterStatus = '';
+let currentPageNum = 1;
 
 // Groups state
-let groupsCache      = [];
-let currentGroupId   = null;
-let addMembersGrpId  = null;
-let mailGroupId      = null;
+let groupsCache = [];
+let currentGroupId = null;
+let addMembersGrpId = null;
+let mailGroupId = null;
 
 // ============================================================
 // AUTH — TAB SWITCHING
@@ -75,9 +75,9 @@ function showError(id, msg) {
 async function handleLogin(e) {
   e.preventDefault();
   clearErrors();
-  const email    = document.getElementById('login-email').value.trim();
+  const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
-  const btn      = document.getElementById('login-btn');
+  const btn = document.getElementById('login-btn');
   setBtnLoading(btn, true);
   try {
     await signInWithEmailAndPassword(auth, email, password);
@@ -93,12 +93,12 @@ async function handleLogin(e) {
 async function handleRegister(e) {
   e.preventDefault();
   clearErrors();
-  const name      = document.getElementById('reg-name').value.trim();
-  const email     = document.getElementById('reg-email').value.trim();
-  const password  = document.getElementById('reg-password').value;
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
   const adminCode = document.getElementById('reg-admincode').value.trim();
-  const isAdmin   = adminCode === ADMIN_CODE;
-  const btn       = document.getElementById('register-btn');
+  const isAdmin = adminCode === ADMIN_CODE;
+  const btn = document.getElementById('register-btn');
   if (!name) { showError('register-error', 'Please enter your full name.'); return; }
   setBtnLoading(btn, true);
   try {
@@ -166,24 +166,24 @@ onAuthStateChanged(auth, async (user) => {
 
 function getAuthError(code) {
   const map = {
-    'auth/user-not-found':         'No account found with this email.',
-    'auth/wrong-password':         'Incorrect password. Please try again.',
-    'auth/email-already-in-use':   'This email is already registered.',
-    'auth/weak-password':          'Password must be at least 6 characters.',
-    'auth/invalid-email':          'Please enter a valid email address.',
-    'auth/too-many-requests':      'Too many attempts. Try again later.',
+    'auth/user-not-found': 'No account found with this email.',
+    'auth/wrong-password': 'Incorrect password. Please try again.',
+    'auth/email-already-in-use': 'This email is already registered.',
+    'auth/weak-password': 'Password must be at least 6 characters.',
+    'auth/invalid-email': 'Please enter a valid email address.',
+    'auth/too-many-requests': 'Too many attempts. Try again later.',
     'auth/network-request-failed': 'Network error. Check your connection.',
-    'auth/invalid-credential':     'Invalid email or password.',
+    'auth/invalid-credential': 'Invalid email or password.',
   };
   return map[code] || 'An error occurred. Please try again.';
 }
 
 function setBtnLoading(btn, loading) {
   if (!btn) return;
-  const span   = btn.querySelector('span');
+  const span = btn.querySelector('span');
   const loader = btn.querySelector('.btn-loader');
   btn.disabled = loading;
-  if (span)   span.style.opacity              = loading ? '0.5' : '1';
+  if (span) span.style.opacity = loading ? '0.5' : '1';
   if (loader) loader.classList.toggle('hidden', !loading);
 }
 
@@ -203,7 +203,7 @@ function showApp(name, role) {
   document.getElementById('app-section').classList.remove('hidden');
   const badge = document.getElementById('role-badge');
   badge.textContent = role === 'admin' ? '👑 Admin' : '👤 User';
-  badge.className   = `role-badge ${role}`;
+  badge.className = `role-badge ${role}`;
   document.getElementById('sidebar-user').innerHTML = `
     <div class="user-avatar">${getInitials(name)}</div>
     <div class="user-details">
@@ -249,7 +249,7 @@ function buildSidebarNav(role) {
 // NAVIGATION
 // ============================================================
 function navigateTo(page) {
-  currentPage    = page;
+  currentPage = page;
   currentPageNum = 1;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById(`nav-${page}`)?.classList.add('active');
@@ -259,9 +259,9 @@ function navigateTo(page) {
   document.getElementById('page-content').innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div></div>';
 
-  if (page === 'dashboard')  renderDashboard();
+  if (page === 'dashboard') renderDashboard();
   else if (page === 'students') renderStudentsPage();
-  else if (page === 'groups')   renderGroupsPage();
+  else if (page === 'groups') renderGroupsPage();
 
   closeSidebarMobile();
 }
@@ -272,12 +272,12 @@ function navigateTo(page) {
 async function renderDashboard() {
   try {
     const students = await fetchAllStudents();
-    studentsCache  = students;
-    const total   = students.length;
-    const active  = students.filter(s => s.status === 'Active').length;
-    const alumni  = students.filter(s => s.status === 'Alumni').length;
+    studentsCache = students;
+    const total = students.length;
+    const active = students.filter(s => s.status === 'Active').length;
+    const alumni = students.filter(s => s.status === 'Alumni').length;
     const courses = new Set(students.map(s => s.course).filter(Boolean)).size;
-    const recent  = [...students]
+    const recent = [...students]
       .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))
       .slice(0, 5);
     const addBtn = currentUserRole === 'admin'
@@ -353,7 +353,7 @@ async function renderStudentsPage() {
           </button>
         </div>
         ${currentUserRole === 'admin'
-          ? `<button class="btn-small primary" onclick="openAddStudentModal()">+ Add Student</button>` : ''}
+      ? `<button class="btn-small primary" onclick="openAddStudentModal()">+ Add Student</button>` : ''}
       </div>
     </div>
     <div class="search-bar">
@@ -396,12 +396,12 @@ function renderStudentsList() {
   if (filterCourse) filtered = filtered.filter(s => s.course === filterCourse);
   if (filterStatus) filtered = filtered.filter(s => s.status === filterStatus);
 
-  const total      = filtered.length;
+  const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if (currentPageNum > totalPages) currentPageNum = 1;
-  const start     = (currentPageNum - 1) * PAGE_SIZE;
+  const start = (currentPageNum - 1) * PAGE_SIZE;
   const paginated = filtered.slice(start, start + PAGE_SIZE);
-  const listEl    = document.getElementById('students-list');
+  const listEl = document.getElementById('students-list');
   if (!listEl) return;
 
   if (!filtered.length) {
@@ -482,7 +482,7 @@ function setView(view) {
   document.getElementById('view-grid')?.classList.toggle('active', view === 'grid');
   renderStudentsList();
 }
-function handleSearch(val)       { searchQuery = val; currentPageNum = 1; renderStudentsList(); }
+function handleSearch(val) { searchQuery = val; currentPageNum = 1; renderStudentsList(); }
 function handleFilterCourse(val) { filterCourse = val; currentPageNum = 1; renderStudentsList(); }
 function handleFilterStatus(val) { filterStatus = val; currentPageNum = 1; renderStudentsList(); }
 function changePage(page) {
@@ -495,13 +495,13 @@ function changePage(page) {
 // FIRESTORE — STUDENTS CRUD
 // ============================================================
 async function fetchAllStudents() {
-  const q    = query(collection(db, 'students'), orderBy('createdAt', 'desc'));
+  const q = query(collection(db, 'students'), orderBy('createdAt', 'desc'));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 function generateStudentId(existing) {
-  const year   = new Date().getFullYear();
+  const year = new Date().getFullYear();
   const maxNum = existing.reduce((max, s) => {
     const m = s.studentId?.match(/STU-\d{4}-(\d+)/);
     return m ? Math.max(max, parseInt(m[1])) : max;
@@ -513,24 +513,24 @@ async function handleStudentSubmit(e) {
   e.preventDefault();
   clearErrors();
   const data = {
-    fullName:       document.getElementById('s-name').value.trim(),
-    email:          document.getElementById('s-email').value.trim(),
-    phone:          document.getElementById('s-phone').value.trim(),
-    dob:            document.getElementById('s-dob').value,
-    gender:         document.getElementById('s-gender').value,
-    course:         document.getElementById('s-course').value,
-    semester:       document.getElementById('s-semester').value,
-    gpa:            parseFloat(document.getElementById('s-gpa').value) || null,
+    fullName: document.getElementById('s-name').value.trim(),
+    email: document.getElementById('s-email').value.trim(),
+    phone: document.getElementById('s-phone').value.trim(),
+    dob: document.getElementById('s-dob').value,
+    gender: document.getElementById('s-gender').value,
+    course: document.getElementById('s-course').value,
+    semester: document.getElementById('s-semester').value,
+    gpa: parseFloat(document.getElementById('s-gpa').value) || null,
     enrollmentDate: document.getElementById('s-enrollment').value,
-    status:         document.getElementById('s-status').value || 'Active',
-    address:        document.getElementById('s-address').value.trim(),
+    status: document.getElementById('s-status').value || 'Active',
+    address: document.getElementById('s-address').value.trim(),
   };
   if (!data.fullName || !data.email || !data.course) {
     showError('student-form-error', 'Name, Email and Course are required.');
     return;
   }
   const btn = document.getElementById('student-submit-btn');
-  const label  = document.getElementById('student-submit-label');
+  const label = document.getElementById('student-submit-label');
   const loader = document.getElementById('student-submit-loader');
   btn.disabled = true; label.style.opacity = '0.5'; loader.classList.remove('hidden');
   try {
@@ -592,7 +592,7 @@ function unlockBodyScroll() {
 // ============================================================
 function openAddStudentModal() {
   editingStudentId = null;
-  document.getElementById('modal-title').textContent          = 'Add New Student';
+  document.getElementById('modal-title').textContent = 'Add New Student';
   document.getElementById('student-submit-label').textContent = 'Save Student';
   document.getElementById('student-form').reset();
   clearErrors();
@@ -604,19 +604,19 @@ function openEditModal(studentId) {
   const s = studentsCache.find(x => x.id === studentId);
   if (!s) { showToast('Student data not found.', 'error'); return; }
   editingStudentId = studentId;
-  document.getElementById('modal-title').textContent          = 'Edit Student';
+  document.getElementById('modal-title').textContent = 'Edit Student';
   document.getElementById('student-submit-label').textContent = 'Update Student';
-  document.getElementById('s-name').value       = s.fullName       || '';
-  document.getElementById('s-email').value      = s.email          || '';
-  document.getElementById('s-phone').value      = s.phone          || '';
-  document.getElementById('s-dob').value        = s.dob            || '';
-  document.getElementById('s-gender').value     = s.gender         || '';
-  document.getElementById('s-course').value     = s.course         || '';
-  document.getElementById('s-semester').value   = s.semester       || '';
-  document.getElementById('s-gpa').value        = s.gpa            ?? '';
+  document.getElementById('s-name').value = s.fullName || '';
+  document.getElementById('s-email').value = s.email || '';
+  document.getElementById('s-phone').value = s.phone || '';
+  document.getElementById('s-dob').value = s.dob || '';
+  document.getElementById('s-gender').value = s.gender || '';
+  document.getElementById('s-course').value = s.course || '';
+  document.getElementById('s-semester').value = s.semester || '';
+  document.getElementById('s-gpa').value = s.gpa ?? '';
   document.getElementById('s-enrollment').value = s.enrollmentDate || '';
-  document.getElementById('s-status').value     = s.status         || 'Active';
-  document.getElementById('s-address').value    = s.address        || '';
+  document.getElementById('s-status').value = s.status || 'Active';
+  document.getElementById('s-address').value = s.address || '';
   clearErrors();
   document.getElementById('student-modal-overlay').classList.remove('hidden');
   lockBodyScroll();
@@ -628,10 +628,10 @@ function closeStudentModal() {
   editingStudentId = null;
   document.getElementById('student-form').reset();
   const btn = document.getElementById('student-submit-btn');
-  const label  = document.getElementById('student-submit-label');
+  const label = document.getElementById('student-submit-label');
   const loader = document.getElementById('student-submit-loader');
-  if (btn)    btn.disabled        = false;
-  if (label)  label.style.opacity = '1';
+  if (btn) btn.disabled = false;
+  if (label) label.style.opacity = '1';
   if (loader) loader.classList.add('hidden');
   clearErrors();
 }
@@ -714,15 +714,15 @@ function closeDeleteModal() {
   unlockBodyScroll();
 }
 
-['student-modal-overlay','view-modal-overlay','delete-modal-overlay','group-modal-overlay','add-members-modal-overlay','mail-modal-overlay'].forEach(id => {
+['student-modal-overlay', 'view-modal-overlay', 'delete-modal-overlay', 'group-modal-overlay', 'add-members-modal-overlay', 'mail-modal-overlay'].forEach(id => {
   document.getElementById(id)?.addEventListener('click', e => {
     if (e.target.id !== id) return;
-    if (id === 'student-modal-overlay')    closeStudentModal();
-    if (id === 'view-modal-overlay')       closeViewModal();
-    if (id === 'delete-modal-overlay')     closeDeleteModal();
-    if (id === 'group-modal-overlay')      closeGroupModal();
+    if (id === 'student-modal-overlay') closeStudentModal();
+    if (id === 'view-modal-overlay') closeViewModal();
+    if (id === 'delete-modal-overlay') closeDeleteModal();
+    if (id === 'group-modal-overlay') closeGroupModal();
     if (id === 'add-members-modal-overlay') closeAddMembersModal();
-    if (id === 'mail-modal-overlay')       closeMailModal();
+    if (id === 'mail-modal-overlay') closeMailModal();
   });
 });
 
@@ -775,13 +775,13 @@ function emptyStateHTML(title, subtitle) {
 }
 
 function courseOptions(selected) {
-  return ['Computer Science','Information Technology','Electronics','Mechanical Engineering',
-    'Civil Engineering','Business Administration','Mathematics','Physics','Chemistry','Biology']
+  return ['Computer Science', 'Information Technology', 'Electronics', 'Mechanical Engineering',
+    'Civil Engineering', 'Business Administration', 'Mathematics', 'Physics', 'Chemistry', 'Biology']
     .map(c => `<option value="${c}" ${selected === c ? 'selected' : ''}>${c}</option>`).join('');
 }
 
 function statusOptions(selected) {
-  return ['Active','Inactive','Alumni','Suspended']
+  return ['Active', 'Inactive', 'Alumni', 'Suspended']
     .map(s => `<option value="${s}" ${selected === s ? 'selected' : ''}>${s}</option>`).join('');
 }
 
@@ -810,20 +810,21 @@ function formatDate(dateStr) {
 function statusClass(status) { return (status || 'active').toLowerCase(); }
 function escHtml(str) {
   if (str == null) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function escAttr(str) {
   if (str == null) return '';
-  return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 // ============================================================
 // GROUPS — FIRESTORE CRUD
 // ============================================================
 async function fetchAllGroups() {
-  const q    = query(collection(db, 'groups'), orderBy('createdAt', 'desc'));
-  const snap = await getDocs(q);
+  const q = query(collection(db, 'groups'), orderBy('createdAt', 'desc'));
+  // Always read from server so add/remove updates are reflected immediately
+  const snap = await getDocsFromServer(q);
   groupsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   return groupsCache;
 }
@@ -916,10 +917,10 @@ function closeGroupModal() {
 
 async function handleGroupSubmit(e) {
   e.preventDefault();
-  const name        = document.getElementById('grp-name').value.trim();
+  const name = document.getElementById('grp-name').value.trim();
   const description = document.getElementById('grp-desc').value.trim();
-  const emoji       = document.getElementById('grp-emoji').value.trim() || '👥';
-  const colorHex    = document.querySelector('input[name="grp-color"]:checked')?.value || '#7c3aed';
+  const emoji = document.getElementById('grp-emoji').value.trim() || '👥';
+  const colorHex = document.querySelector('input[name="grp-color"]:checked')?.value || '#7c3aed';
   if (!name) return;
 
   const btn = document.getElementById('group-submit-btn');
@@ -927,10 +928,10 @@ async function handleGroupSubmit(e) {
   try {
     await addDoc(collection(db, 'groups'), {
       name, description, emoji,
-      color:      colorToGradient(colorHex),
+      color: colorToGradient(colorHex),
       studentIds: [],
-      createdAt:  serverTimestamp(),
-      createdBy:  currentUser.uid,
+      createdAt: serverTimestamp(),
+      createdBy: currentUser.uid,
     });
     closeGroupModal();
     showToast('✅ Group created!', 'success');
@@ -958,7 +959,7 @@ async function deleteGroup(groupId, groupName) {
 // ============================================================
 async function openGroupDetail(groupId) {
   currentGroupId = groupId;
-  currentPage    = 'group-detail';
+  currentPage = 'group-detail';
   document.getElementById('page-title').textContent = 'Group Detail';
   document.getElementById('page-content').innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div></div>';
@@ -966,7 +967,7 @@ async function openGroupDetail(groupId) {
   try {
     const gSnap = await getDoc(doc(db, 'groups', groupId));
     if (!gSnap.exists()) { showToast('Group not found.', 'error'); return; }
-    const group      = { id: gSnap.id, ...gSnap.data() };
+    const group = { id: gSnap.id, ...gSnap.data() };
     const studentIds = group.studentIds || [];
 
     // Sync groups cache
@@ -1003,8 +1004,8 @@ async function openGroupDetail(groupId) {
       <div class="section-header"><h3>Members (${groupStudents.length})</h3></div>
       <div class="table-wrapper">
         ${groupStudents.length === 0
-          ? emptyStateHTML('No students yet', 'Click "+ Add Students" to add members to this group.')
-          : `<table>
+        ? emptyStateHTML('No students yet', 'Click "+ Add Students" to add members to this group.')
+        : `<table>
               <thead><tr><th>Student</th><th>Email</th><th>Course</th><th>Status</th><th>Remove</th></tr></thead>
               <tbody>
                 ${groupStudents.map(s => `
@@ -1036,9 +1037,9 @@ async function openGroupDetail(groupId) {
 // ============================================================
 function openAddMembersModal(groupId) {
   addMembersGrpId = groupId;
-  const group    = groupsCache.find(g => g.id === groupId);
+  const group = groupsCache.find(g => g.id === groupId);
   const alreadyIn = new Set(group?.studentIds || []);
-  const populate  = () => {
+  const populate = () => {
     const available = studentsCache.filter(s => !alreadyIn.has(s.id));
     document.getElementById('add-members-list').innerHTML = available.length === 0
       ? `<p style="color:var(--text-muted);text-align:center;padding:24px">All students are already in this group.</p>`
@@ -1103,12 +1104,12 @@ async function removeFromGroup(groupId, studentId) {
 // MAIL MODAL — EmailJS
 // ============================================================
 function openMailModal(groupId) {
-  mailGroupId    = groupId;
-  const group    = groupsCache.find(g => g.id === groupId);
+  mailGroupId = groupId;
+  const group = groupsCache.find(g => g.id === groupId);
   if (!group) { showToast('Group not found.', 'error'); return; }
-  const studentIds   = group.studentIds || [];
+  const studentIds = group.studentIds || [];
   const groupStudents = studentsCache.filter(s => studentIds.includes(s.id));
-  const withEmail    = groupStudents.filter(s => s.email);
+  const withEmail = groupStudents.filter(s => s.email);
 
   document.getElementById('mail-group-name').textContent = group.name;
   document.getElementById('mail-recipient-count').textContent =
@@ -1133,26 +1134,26 @@ async function handleSendMail(e) {
   e.preventDefault();
   const subject = document.getElementById('mail-subject').value.trim();
   const message = document.getElementById('mail-message').value.trim();
-  const group   = groupsCache.find(g => g.id === mailGroupId);
+  const group = groupsCache.find(g => g.id === mailGroupId);
   if (!group) return;
 
   const groupStudents = studentsCache.filter(s => (group.studentIds || []).includes(s.id));
-  const withEmail     = groupStudents.filter(s => s.email);
+  const withEmail = groupStudents.filter(s => s.email);
   if (!withEmail.length) { showToast('No students with email addresses.', 'error'); return; }
 
-  const serviceId  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+  const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
   const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-  const publicKey  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+  const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
   if (!serviceId || !templateId || !publicKey ||
-      serviceId === 'your_service_id') {
+    serviceId === 'your_service_id') {
     showToast('⚠️ EmailJS not configured yet. Check .env file.', 'error');
     return;
   }
 
-  const btn          = document.getElementById('mail-send-btn');
-  const progressEl   = document.getElementById('mail-progress');
-  const progressBar  = document.getElementById('mail-progress-bar');
+  const btn = document.getElementById('mail-send-btn');
+  const progressEl = document.getElementById('mail-progress');
+  const progressBar = document.getElementById('mail-progress-bar');
   const progressText = document.getElementById('mail-progress-text');
   btn.disabled = true;
   btn.textContent = 'Sending…';
@@ -1162,10 +1163,10 @@ async function handleSendMail(e) {
   for (const student of withEmail) {
     try {
       await emailjs.send(serviceId, templateId, {
-        to_email:  student.email,
-        to_name:   student.fullName,
+        to_email: student.email,
+        to_name: student.fullName,
         subject,
-        message:   message.replace(/\{\{name\}\}/gi, student.fullName),
+        message: message.replace(/\{\{name\}\}/gi, student.fullName),
         from_name: 'IndraDatabase',
       });
       sent++;
@@ -1174,7 +1175,7 @@ async function handleSendMail(e) {
       failed++;
     }
     const pct = Math.round(((sent + failed) / withEmail.length) * 100);
-    progressBar.style.width  = pct + '%';
+    progressBar.style.width = pct + '%';
     progressText.textContent = `Sent ${sent + failed} of ${withEmail.length}…`;
     await new Promise(r => setTimeout(r, 250));
   }
