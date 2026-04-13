@@ -419,24 +419,28 @@ function renderStudentsList() {
     </div>`;
 
   if (currentView === 'table') {
-    const adminCols = currentUserRole === 'admin' ? '<th>Phone</th><th>Actions</th>' : '';
+    // Admins see all columns; viewers see only Name, Email, Course, Status
+    const isAdmin = currentUserRole === 'admin';
+    const adminCols = isAdmin ? '<th>Semester</th><th>GPA</th><th>Phone</th><th>Actions</th>' : '';
     const rows = paginated.map(s => {
-      const adminCells = currentUserRole === 'admin' ? `
+      const adminCells = isAdmin ? `
+        <td>${escHtml(s.semester || '—')}</td>
+        <td>${s.gpa != null ? s.gpa + '/10' : '—'}</td>
         <td>${escHtml(s.phone || '—')}</td>
         <td><div class="table-actions">
           <button class="btn-icon edit"   onclick="event.stopPropagation();openEditModal('${s.id}')"   title="Edit"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
           <button class="btn-icon delete" onclick="event.stopPropagation();openDeleteModal('${s.id}','${escAttr(s.fullName)}')" title="Delete"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
         </div></td>` : '';
+      // Non-admins: row is not clickable (no view modal)
+      const rowClick = isAdmin ? `onclick="openViewModal('${s.id}')"` : '';
       return `
-        <tr onclick="openViewModal('${s.id}')">
+        <tr ${rowClick} style="${isAdmin ? 'cursor:pointer' : ''}">
           <td><div class="student-cell">
             <div class="student-avatar" style="background:${getAvatarColor(s.fullName)}">${getInitials(s.fullName)}</div>
             <div><div class="student-name">${escHtml(s.fullName)}</div><div class="student-id">${escHtml(s.studentId || '')}</div></div>
           </div></td>
           <td>${escHtml(s.email || '—')}</td>
           <td>${escHtml(s.course || '—')}</td>
-          <td>${escHtml(s.semester || '—')}</td>
-          <td>${s.gpa != null ? s.gpa + '/10' : '—'}</td>
           <td><span class="status-badge ${statusClass(s.status)}">${escHtml(s.status || 'Active')}</span></td>
           ${adminCells}
         </tr>`;
@@ -444,7 +448,7 @@ function renderStudentsList() {
     listEl.innerHTML = `
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Student</th><th>Email</th><th>Course</th><th>Semester</th><th>GPA</th><th>Status</th>${adminCols}</tr></thead>
+          <thead><tr><th>Student</th><th>Email</th><th>Course</th><th>Status</th>${adminCols}</tr></thead>
           <tbody>${rows}</tbody>
         </table>${paginationHtml}
       </div>`;
@@ -456,18 +460,20 @@ function renderStudentsList() {
           <button class="btn-icon delete" onclick="event.stopPropagation();openDeleteModal('${s.id}','${escAttr(s.fullName)}')" title="Delete"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
         </div>` : '';
       return `
-        <div class="student-card" onclick="openViewModal('${s.id}')">
+        <div class="student-card" ${currentUserRole === 'admin' ? `onclick="openViewModal('${s.id}')"` : ''}>
           <div class="student-card-header">
             <div class="student-card-avatar" style="background:${getAvatarColor(s.fullName)}">${getInitials(s.fullName)}</div>
-            <div class="student-card-info"><h4>${escHtml(s.fullName)}</h4><p>${escHtml(s.studentId || '')}</p><p>${escHtml(s.email || '')}</p></div>
+            <div class="student-card-info"><h4>${escHtml(s.fullName)}</h4><p>${escHtml(s.email || '')}</p></div>
           </div>
           <div class="student-card-detail">
             <div class="student-card-row"><span>Course</span><span>${escHtml(s.course || '—')}</span></div>
+            <div class="student-card-row"><span>Status</span><span class="status-badge ${statusClass(s.status)}">${escHtml(s.status || 'Active')}</span></div>
+            ${currentUserRole === 'admin' ? `
             <div class="student-card-row"><span>Semester</span><span>${escHtml(s.semester || '—')}</span></div>
             <div class="student-card-row"><span>GPA</span><span>${s.gpa != null ? s.gpa + '/10' : '—'}</span></div>
+            ` : ''}
           </div>
           <div class="student-card-footer">
-            <span class="status-badge ${statusClass(s.status)}">${escHtml(s.status || 'Active')}</span>
             ${adminActions}
           </div>
         </div>`;
@@ -679,15 +685,14 @@ function renderViewModal(s) {
         </div>`;
     }
   }
-  document.getElementById('view-modal-body').innerHTML = `
-    <div class="profile-header">
-      <div class="profile-avatar" style="background:${getAvatarColor(s.fullName)}">${getInitials(s.fullName)}</div>
-      <div class="profile-title">
-        <h3>${escHtml(s.fullName)}</h3><p>${escHtml(s.email || '')}</p>
-        <span class="profile-id">${escHtml(s.studentId || '')}</span>
-      </div>
-      <div class="profile-badge-wrap"><span class="status-badge ${statusClass(s.status)}">${escHtml(s.status || 'Active')}</span></div>
-    </div>
+  // Viewer mode: only show Name, Email, Course, Status
+  const isViewer = currentUserRole !== 'admin';
+  const detailsHTML = isViewer ? `
+    <div class="profile-details-grid">
+      <div class="profile-detail-item"><label>Email</label><span>${escHtml(s.email || 'Not provided')}</span></div>
+      <div class="profile-detail-item"><label>Course / Department</label><span>${escHtml(s.course || 'Not provided')}</span></div>
+      <div class="profile-detail-item"><label>Status</label><span>${escHtml(s.status || 'Active')}</span></div>
+    </div>` : `
     <div class="profile-details-grid">
       <div class="profile-detail-item"><label>Phone</label><span>${escHtml(s.phone || 'Not provided')}</span></div>
       <div class="profile-detail-item"><label>Date of Birth</label><span>${s.dob ? formatDate(s.dob) : 'Not provided'}</span></div>
@@ -699,6 +704,17 @@ function renderViewModal(s) {
       <div class="profile-detail-item"><label>Status</label><span>${escHtml(s.status || 'Active')}</span></div>
       <div class="profile-detail-item full"><label>Address</label><span>${escHtml(s.address || 'Not provided')}</span></div>
     </div>${adminActions}`;
+
+  document.getElementById('view-modal-body').innerHTML = `
+    <div class="profile-header">
+      <div class="profile-avatar" style="background:${getAvatarColor(s.fullName)}">${getInitials(s.fullName)}</div>
+      <div class="profile-title">
+        <h3>${escHtml(s.fullName)}</h3><p>${escHtml(s.email || '')}</p>
+        <span class="profile-id">${escHtml(s.studentId || '')}</span>
+      </div>
+      <div class="profile-badge-wrap"><span class="status-badge ${statusClass(s.status)}">${escHtml(s.status || 'Active')}</span></div>
+    </div>
+    ${detailsHTML}`;
   document.getElementById('view-modal-overlay').classList.remove('hidden');
   lockBodyScroll();
 }
