@@ -1823,10 +1823,16 @@ function openChatRoom(userObj, switchTab = true) {
   
   if (switchTab) renderChatPage('chats');
 
+  // Trigger mobile UI shift
+  document.querySelector('.chat-container')?.classList.add('mobile-chat-active');
+
   const mainArea = document.getElementById('chat-main-area');
   if (!mainArea) return;
   mainArea.innerHTML = `
     <div class="chat-header">
+      <button class="mobile-chat-back-btn" onclick="closeChatRoom()">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="margin-right:4px;"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/></svg>Back
+      </button>
       <div class="student-avatar sm" style="background:${getAvatarColor(userObj.name)}">${getInitials(userObj.name)}</div>
       <div style="font-weight:600;font-size:15px;">${escHtml(userObj.name)}</div>
     </div>
@@ -1900,6 +1906,24 @@ function sendChatMessage() {
   });
 }
 
+function closeChatRoom() {
+  activeChatObj = null;
+  activeChatRoomId = null;
+  if(unsubscribeChat) { unsubscribeChat(); unsubscribeChat = null; }
+  
+  document.querySelector('.chat-container')?.classList.remove('mobile-chat-active');
+  
+  const mainArea = document.getElementById('chat-main-area');
+  if (mainArea) {
+    mainArea.innerHTML = `
+      <div class="chat-empty">
+        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+        <p>Select a chat or find users to start messaging</p>
+      </div>`;
+  }
+  renderChatPage('chats');
+}
+
 // ============================================================
 // EXPOSE TO GLOBAL SCOPE
 // ============================================================
@@ -1926,5 +1950,5 @@ Object.assign(window, {
   updateAccessRequestStatus, requestFieldAccess,
   formatPrf,
   // Chat System
-  renderChatPage, sendChatRequest, updateChatReqStatus, openChatRoom, sendChatMessage
+  renderChatPage, sendChatRequest, updateChatReqStatus, openChatRoom, closeChatRoom, sendChatMessage
 });
