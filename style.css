@@ -958,7 +958,9 @@ tbody td { padding: 13px 18px; font-size: 14px; color: var(--text-primary); vert
    ============================================================ */
 .chat-container {
   display: flex;
-  height: calc(100vh - 140px);
+  height: calc(100dvh - 150px);
+  min-height: 400px;
+  max-height: 800px;
   background: var(--bg-card);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
@@ -1120,7 +1122,7 @@ tbody td { padding: 13px 18px; font-size: 14px; color: var(--text-primary); vert
 
 @media (max-width: 768px) {
   .chat-container {
-    height: calc(100vh - 110px);
+    height: calc(100dvh - 150px);
   }
   .chat-sidebar {
     width: 100%;
