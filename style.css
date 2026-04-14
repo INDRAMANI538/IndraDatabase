@@ -952,3 +952,166 @@ tbody td { padding: 13px 18px; font-size: 14px; color: var(--text-primary); vert
   font-size: 13px;
   width: auto;
 }
+
+/* ============================================================
+   CHAT SYSTEM
+   ============================================================ */
+.chat-container {
+  display: flex;
+  height: calc(100vh - 140px);
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.chat-sidebar {
+  width: 320px;
+  border-right: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  background: rgba(255,255,255,0.01);
+}
+
+.chat-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--glass-border);
+}
+.chat-tab {
+  flex: 1;
+  padding: 14px 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+.chat-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: rgba(255,255,255,0.03);
+}
+
+.chat-list {
+  flex: 1;
+  overflow-y: auto;
+}
+.chat-list-item {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.chat-list-item:hover { background: rgba(255, 255, 255, 0.03); }
+.chat-list-item.active { background: rgba(124, 58, 237, 0.1); }
+.chat-list-info { flex: 1; overflow: hidden; }
+.chat-list-name { font-weight: 500; font-size: 14px; color: var(--text-primary); margin-bottom: 2px; }
+.chat-list-status { font-size: 11px; color: var(--text-muted); }
+
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-body);
+}
+
+.chat-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+}
+
+.chat-messages-area {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chat-bubble-wrap {
+  display: flex;
+  flex-direction: column;
+  max-width: 70%;
+}
+.chat-bubble-wrap.sent { align-self: flex-end; align-items: flex-end; }
+.chat-bubble-wrap.received { align-self: flex-start; align-items: flex-start; }
+
+.chat-bubble {
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.chat-bubble-wrap.sent .chat-bubble {
+  background: var(--primary);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-bubble-wrap.received .chat-bubble {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  border-bottom-left-radius: 4px;
+}
+.chat-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.chat-input-area {
+  padding: 16px 24px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  gap: 12px;
+}
+.chat-input {
+  flex: 1;
+  background: var(--bg-body);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  padding: 12px 16px;
+  border-radius: var(--r-full);
+  outline: none;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+.chat-input:focus { border-color: var(--primary); }
+.chat-send-btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.chat-send-btn:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4); }
+.chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.chat-send-btn svg { width: 20px; height: 20px; fill: white; }
+
+.chat-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.chat-empty svg { width: 64px; height: 64px; fill: currentColor; margin-bottom: 16px; opacity: 0.5;}

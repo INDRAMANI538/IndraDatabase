@@ -11,7 +11,7 @@ import {
 import {
   collection, doc, getDocs, addDoc, updateDoc, deleteDoc,
   setDoc, getDoc, query, orderBy, serverTimestamp,
-  arrayUnion, arrayRemove, getDocsFromServer, where,
+  arrayUnion, arrayRemove, getDocsFromServer, where, onSnapshot
 } from 'firebase/firestore';
 
 // ============================================================
@@ -46,6 +46,13 @@ let mailGroupId = null;
 
 // Access Request state
 let accessRequestsCache = [];
+
+// Chat System State
+let chatRequestsCache = [];
+let activeChatUsers = []; // Users with whom we have approved chats
+let activeChatRoomId = null;
+let activeChatObj = null;
+let unsubscribeChat = null;
 
 // ============================================================
 // AUTH — TAB SWITCHING
@@ -259,6 +266,11 @@ function buildSidebarNav(role) {
       <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
       All Students
     </div>
+    <div class="nav-section-title">Communication</div>
+    <div class="nav-item" id="nav-messages" onclick="navigateTo('messages')">
+      <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+      Messages
+    </div>
     ${adminOnlyItems}
   `;
 }
@@ -272,7 +284,7 @@ function navigateTo(page) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById(`nav-${page}`)?.classList.add('active');
 
-  const titles = { dashboard: 'Dashboard', students: 'All Students', groups: 'Groups & Mail' };
+  const titles = { dashboard: 'Dashboard', students: 'All Students', groups: 'Groups & Mail', messages: 'Messages' };
   document.getElementById('page-title').textContent = titles[page] || 'IndraDatabase';
   document.getElementById('page-content').innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div></div>';
@@ -280,6 +292,7 @@ function navigateTo(page) {
   if (page === 'dashboard') renderDashboard();
   else if (page === 'students') renderStudentsPage();
   else if (page === 'groups') renderGroupsPage();
+  else if (page === 'messages') renderChatPage();
   else if (page === 'admin-control') renderAdminControlPage();
   else if (page === 'user-requests') renderUserRequestsPage();
 
@@ -1397,6 +1410,9 @@ async function renderAdminControlPage() {
           <option value="admin" ${displayRole === 'admin' ? 'selected' : ''}>Admin</option>
         </select>`;
 
+      const actionHtml = isMe ? `<span style="font-size:12px;color:var(--text-muted);">Current User</span>` : 
+        `<button class="btn-small danger" style="padding:4px 8px;font-size:12px;" onclick="openDeleteUserModal('${u.id}', '${escAttr(u.name)}')">Delete</button>`;
+
       return `
         <tr>
           <td><div class="student-cell">
@@ -1405,14 +1421,15 @@ async function renderAdminControlPage() {
           </div></td>
           <td>${escHtml(u.email)}</td>
           <td>${selectHtml}</td>
+          <td>${actionHtml}</td>
         </tr>`;
     }).join('');
 
     document.getElementById('page-content').innerHTML = `
-      <div class="page-header"><h2>Admin Control — Manage Roles</h2></div>
+      <div class="page-header"><h2>Admin Control — Manage Roles & Users</h2></div>
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>User</th><th>Email</th><th>Role Access</th></tr></thead>
+          <thead><tr><th>User</th><th>Email</th><th>Role Access</th><th>Action</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;
@@ -1429,6 +1446,48 @@ async function updateUserRole(uid, newRole) {
   } catch (err) {
     console.error(err);
     showToast('Failed to update role.', 'error');
+  }
+}
+
+let targetDeleteUserId = null;
+
+function openDeleteUserModal(uid, name) {
+  targetDeleteUserId = uid;
+  document.getElementById('delete-user-name').textContent = name;
+  document.getElementById('delete-user-admin-code').value = '';
+  document.getElementById('delete-user-overlay').classList.remove('hidden');
+}
+
+function closeDeleteUserModal() {
+  targetDeleteUserId = null;
+  document.getElementById('delete-user-overlay').classList.add('hidden');
+  document.getElementById('delete-user-admin-code').value = '';
+  const btn = document.getElementById('confirm-delete-user-btn');
+  if (btn) {
+     btn.disabled = false;
+     btn.textContent = '🔥 Permanently Delete';
+  }
+}
+
+async function confirmDeleteUser() {
+  const codeCheck = document.getElementById('delete-user-admin-code').value.trim();
+  if (codeCheck !== ADMIN_CODE) {
+    showToast('Incorrect Admin Code.', 'error');
+    return;
+  }
+  if (!targetDeleteUserId) return;
+  const btn = document.getElementById('confirm-delete-user-btn');
+  btn.disabled = true;
+  btn.textContent = 'Deleting...';
+  try {
+    await deleteDoc(doc(db, 'users', targetDeleteUserId));
+    showToast('User completely deleted from database.', 'success');
+    closeDeleteUserModal();
+    renderAdminControlPage();
+  } catch(err) {
+    showToast('Error deleting user.', 'error');
+    btn.disabled = false;
+    btn.textContent = '🔥 Permanently Delete';
   }
 }
 
@@ -1562,6 +1621,262 @@ async function requestFieldAccess(studentId, studentName, fieldName) {
 }
 
 // ============================================================
+// CHAT SYSTEM
+// ============================================================
+async function renderChatPage(activeTab = 'chats') {
+  document.getElementById('page-content').innerHTML = `
+    <div class="chat-container">
+      <div class="chat-sidebar">
+        <div class="chat-tabs">
+          <div class="chat-tab ${activeTab === 'chats' ? 'active' : ''}" onclick="renderChatPage('chats')">Chats</div>
+          <div class="chat-tab ${activeTab === 'requests' ? 'active' : ''}" onclick="renderChatPage('requests')">Requests</div>
+          <div class="chat-tab ${activeTab === 'users' ? 'active' : ''}" onclick="renderChatPage('users')">Find Users</div>
+        </div>
+        <div class="chat-list" id="chat-sidebar-list">
+          <div class="spinner" style="margin: 20px auto"></div>
+        </div>
+      </div>
+      <div class="chat-main" id="chat-main-area">
+        ${activeChatObj ? '' : `
+        <div class="chat-empty">
+          <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+          <p>Select a chat or find users to start messaging</p>
+        </div>`}
+      </div>
+    </div>
+  `;
+
+  if (activeChatObj) openChatRoom(activeChatObj, false);
+
+  const listEl = document.getElementById('chat-sidebar-list');
+  try {
+    if (activeTab === 'users') {
+      const snap = await getDocs(collection(db, 'users'));
+      const users = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.id !== currentUser.uid);
+      
+      const reqQ1 = query(collection(db, 'chatRequests'), where('senderId', '==', currentUser.uid));
+      const reqQ2 = query(collection(db, 'chatRequests'), where('receiverId', '==', currentUser.uid));
+      const [snap1, snap2] = await Promise.all([getDocs(reqQ1), getDocs(reqQ2)]);
+      const allReqs = [...snap1.docs, ...snap2.docs].map(d => d.data());
+      
+      if (!users.length) {
+        listEl.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px;">No other users found.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = users.map(u => {
+        const existingReq = allReqs.find(r => (r.senderId === u.id || r.receiverId === u.id));
+        let actionHtml = `<button class="btn-small primary" style="font-size:11px;padding:4px 8px;" onclick="sendChatRequest('${u.id}', '${escAttr(u.name)}')">Request</button>`;
+        if (existingReq) {
+           if (existingReq.status === 'approved') actionHtml = `<span style="font-size:11px;color:var(--primary);">Connected</span>`;
+           else actionHtml = `<span style="font-size:11px;color:var(--text-muted); text-transform:capitalize;">${existingReq.status}</span>`;
+        }
+        return `
+          <div class="chat-list-item">
+            <div class="student-avatar sm" style="background:${getAvatarColor(u.name)}">${getInitials(u.name)}</div>
+            <div class="chat-list-info">
+              <div class="chat-list-name">${escHtml(u.name || 'Unknown')}</div>
+              <div class="chat-list-status">${u.role === 'admin' ? 'Admin' : 'Member'}</div>
+            </div>
+            ${actionHtml}
+          </div>
+        `;
+      }).join('');
+    } else if (activeTab === 'requests') {
+      const q1 = query(collection(db, 'chatRequests'), where('receiverId', '==', currentUser.uid));
+      const q2 = query(collection(db, 'chatRequests'), where('senderId', '==', currentUser.uid));
+      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      const incoming = snap1.docs.map(d => ({ id: d.id, ...d.data(), type: 'incoming' })).filter(r => r.status !== 'approved');
+      const outgoing = snap2.docs.map(d => ({ id: d.id, ...d.data(), type: 'outgoing' })).filter(r => r.status !== 'approved');
+      const allReqs = [...incoming, ...outgoing].sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+      
+      if (!allReqs.length) {
+        listEl.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px;">No requests found.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = allReqs.map(r => {
+        const isIncoming = r.type === 'incoming';
+        const otherName = isIncoming ? r.senderName : r.receiverName;
+        let actionHtml = `<span class="status-badge ${r.status}" style="font-size:10px;">${r.status}</span>`;
+        
+        if (isIncoming && r.status === 'pending') {
+          actionHtml = `
+            <button class="btn-small primary" style="font-size:10px;padding:2px 6px;min-width:auto;" onclick="updateChatReqStatus('${r.id}', 'approved')">Approve</button>
+            <button class="btn-small danger" style="font-size:10px;padding:2px 6px;min-width:auto;" onclick="updateChatReqStatus('${r.id}', 'rejected')">Reject</button>
+          `;
+        }
+        return `
+          <div class="chat-list-item">
+            <div class="chat-list-info">
+              <div class="chat-list-name">${escHtml(otherName)}</div>
+              <div class="chat-list-status" style="color:var(--primary);">${isIncoming ? 'Incoming Request' : 'Sent Request'}</div>
+            </div>
+            <div style="display:flex;gap:4px;flex-direction:column;align-items:flex-end;">${actionHtml}</div>
+          </div>
+        `;
+      }).join('');
+    } else { // chats
+      const q1 = query(collection(db, 'chatRequests'), where('receiverId', '==', currentUser.uid), where('status', '==', 'approved'));
+      const q2 = query(collection(db, 'chatRequests'), where('senderId', '==', currentUser.uid), where('status', '==', 'approved'));
+      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      const approved = [...snap1.docs, ...snap2.docs].map(d => d.data());
+      
+      if (!approved.length) {
+        listEl.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px;">No active chats.<br/>Find users to start messaging!</div>`;
+        return;
+      }
+
+      const activeUsers = approved.map(r => {
+        const isMeSender = r.senderId === currentUser.uid;
+        return {
+          id: isMeSender ? r.receiverId : r.senderId,
+          name: isMeSender ? r.receiverName : r.senderName
+        };
+      });
+
+      listEl.innerHTML = activeUsers.map(u => `
+        <div class="chat-list-item ${activeChatObj?.id === u.id ? 'active' : ''}" onclick="openChatRoom({id:'${u.id}', name:'${escAttr(u.name)}'})">
+          <div class="student-avatar sm" style="background:${getAvatarColor(u.name)}">${getInitials(u.name)}</div>
+          <div class="chat-list-info">
+            <div class="chat-list-name">${escHtml(u.name)}</div>
+            <div class="chat-list-status">Click to open chat</div>
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    console.error(err);
+    listEl.innerHTML = `<div style="padding:16px;text-align:center;color:var(--error);font-size:13px;">Error loading data.</div>`;
+  }
+}
+
+async function sendChatRequest(receiverId, receiverName) {
+  try {
+    const q1 = query(collection(db, 'chatRequests'), where('senderId', '==', currentUser.uid), where('receiverId', '==', receiverId));
+    const snap = await getDocs(q1);
+    if (!snap.empty) {
+      if (snap.docs[0].data().status === 'rejected') {
+         await updateDoc(doc(db, 'chatRequests', snap.docs[0].id), { status: 'pending', createdAt: serverTimestamp() });
+         showToast('Re-sent chat request!', 'success');
+         renderChatPage('users');
+         return;
+      }
+    }
+    
+    await addDoc(collection(db, 'chatRequests'), {
+      senderId: currentUser.uid,
+      senderName: currentUserName,
+      receiverId: receiverId,
+      receiverName: receiverName,
+      status: 'pending',
+      createdAt: serverTimestamp()
+    });
+    showToast('Chat request sent!', 'success');
+    renderChatPage('users');
+  } catch (err) {
+    showToast('Failed to send request.', 'error');
+  }
+}
+
+async function updateChatReqStatus(reqId, status) {
+  try {
+    await updateDoc(doc(db, 'chatRequests', reqId), { status });
+    showToast(`Request ${status}`, 'success');
+    renderChatPage('requests');
+  } catch (err) {
+    showToast('Error updating status.', 'error');
+  }
+}
+
+function getChatRoomId(uid1, uid2) {
+  return [uid1, uid2].sort().join('_');
+}
+
+function openChatRoom(userObj, switchTab = true) {
+  activeChatObj = userObj;
+  activeChatRoomId = getChatRoomId(currentUser.uid, userObj.id);
+  
+  if (switchTab) renderChatPage('chats');
+
+  const mainArea = document.getElementById('chat-main-area');
+  if (!mainArea) return;
+  mainArea.innerHTML = `
+    <div class="chat-header">
+      <div class="student-avatar sm" style="background:${getAvatarColor(userObj.name)}">${getInitials(userObj.name)}</div>
+      <div style="font-weight:600;font-size:15px;">${escHtml(userObj.name)}</div>
+    </div>
+    <div class="chat-messages-area" id="chat-messages-area">
+      <div class="spinner" style="margin: auto"></div>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" id="chat-input-box" placeholder="Type a message..." autocomplete="off" onkeypress="if(event.key==='Enter') sendChatMessage()" />
+      <button class="chat-send-btn" onclick="sendChatMessage()">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  `;
+
+  if (unsubscribeChat) unsubscribeChat();
+  // Querying without orderBy prevents Firebase from throwing a missing Composite Index error.
+  const q = query(
+    collection(db, 'messages'), 
+    where('roomId', '==', activeChatRoomId)
+  );
+  
+  unsubscribeChat = onSnapshot(q, (snap) => {
+    // Sort natively on the client to completely bypass Firebase index requirements
+    const messages = snap.docs.map(d => d.data()).sort((a,b) => {
+      const timeA = a.createdAt?.seconds || Date.now();
+      const timeB = b.createdAt?.seconds || Date.now();
+      return timeA - timeB;
+    });
+    const area = document.getElementById('chat-messages-area');
+    if (!area) return;
+    
+    if (messages.length === 0) {
+      area.innerHTML = `
+        <div class="chat-empty" style="margin:auto">
+          <p>This is the beginning of your secure chat history.</p>
+        </div>`;
+      return;
+    }
+
+    area.innerHTML = messages.map(m => {
+      const isSent = m.senderId === currentUser.uid;
+      const typeClass = isSent ? 'sent' : 'received';
+      const timeStr = m.createdAt ? new Date(m.createdAt.toDate()).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'Sending...';
+      return `
+        <div class="chat-bubble-wrap ${typeClass}">
+          <div class="chat-bubble">${escHtml(m.text)}</div>
+          <div class="chat-time">${timeStr}</div>
+        </div>
+      `;
+    }).join('');
+    
+    setTimeout(() => { area.scrollTop = area.scrollHeight; }, 50);
+  }, (err) => {
+    console.error('Chat error:', err);
+  });
+}
+
+function sendChatMessage() {
+  const input = document.getElementById('chat-input-box');
+  const text = input.value.trim();
+  if (!text || !activeChatRoomId) return;
+  input.value = '';
+  
+  addDoc(collection(db, 'messages'), {
+    roomId: activeChatRoomId,
+    senderId: currentUser.uid,
+    text: text,
+    createdAt: serverTimestamp()
+  }).catch(err => {
+    showToast('Failed to send message.', 'error');
+  });
+}
+
+// ============================================================
 // EXPOSE TO GLOBAL SCOPE
 // ============================================================
 Object.assign(window, {
@@ -1583,6 +1898,9 @@ Object.assign(window, {
   // Mail
   openMailModal, closeMailModal, handleSendMail,
   // Admin & RBAC
-  updateUserRole, updateAccessRequestStatus, requestFieldAccess,
+  updateUserRole, openDeleteUserModal, closeDeleteUserModal, confirmDeleteUser,
+  updateAccessRequestStatus, requestFieldAccess,
   formatPrf,
+  // Chat System
+  renderChatPage, sendChatRequest, updateChatReqStatus, openChatRoom, sendChatMessage
 });

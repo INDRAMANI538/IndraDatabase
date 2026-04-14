@@ -422,6 +422,31 @@
     </div>
   </div>
 
+  <!-- ============================
+       DELETE USER MODAL (Admin Control)
+       ============================ -->
+  <div class="modal-overlay hidden" id="delete-user-overlay" style="z-index:9999;">
+    <div class="modal glass">
+      <div class="modal-header">
+        <h2 style="color:var(--error)">🗑️ Completely Delete User</h2>
+        <button class="modal-close" onclick="closeDeleteUserModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom:16px;">Are you absolutely sure you want to permanently delete the account for <strong id="delete-user-name"></strong>?</p>
+        <p style="margin-bottom:16px; color:var(--text-muted); font-size:12px;">This will completely remove their profile from the database, preventing them from accessing the app. Enter the <strong style="color:var(--text-primary)">Admin Code</strong> below to confirm.</p>
+        
+        <div class="form-group" style="margin-bottom: 24px;">
+          <input type="password" id="delete-user-admin-code" placeholder="Enter ADMIN CODE to confirm" required />
+        </div>
+        
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" onclick="closeDeleteUserModal()">Cancel</button>
+          <button type="button" class="btn-primary danger" id="confirm-delete-user-btn" onclick="confirmDeleteUser()">🔥 Permanently Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notifications -->
   <div class="toast-container" id="toast-container"></div>
 
