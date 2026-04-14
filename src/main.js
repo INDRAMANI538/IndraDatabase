@@ -111,14 +111,30 @@ async function handleRegister(e) {
   const btn = document.getElementById('register-btn');
   if (!name) { showError('register-error', 'Please enter your full name.'); return; }
   setBtnLoading(btn, true);
+  
   try {
+    let finalName = name;
+    
+    if (!isAdmin) {
+      const q = query(collection(db, 'students'), where('email', '==', email));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        showError('register-error', 'Unauthorized. Your email is not registered in the student database by Administration.');
+        setBtnLoading(btn, false);
+        return;
+      }
+      // Official name field in DB is 'fullName'
+      finalName = snap.docs[0].data().fullName || name;
+    }
+
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await setDoc(doc(db, 'users', cred.user.uid), {
-      name, email,
+      name: finalName,
+      email: email,
       role: isAdmin ? 'admin' : 'user',
       createdAt: serverTimestamp(),
     });
-    showToast(isAdmin ? '🎉 Admin account created!' : '✅ Account created! Welcome.', 'success');
+    showToast(isAdmin ? '🎉 Admin account created!' : `✅ Account verified for ${finalName}!`, 'success');
   } catch (err) {
     showError('register-error', getAuthError(err.code));
     setBtnLoading(btn, false);
@@ -150,7 +166,15 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
     try {
-      const snap = await getDoc(doc(db, 'users', user.uid));
+      let snap = await getDoc(doc(db, 'users', user.uid));
+      
+      // If snap doesn't exist, it might be a brand new registration where setDoc hasn't finished.
+      // Wait 1.5 seconds and retry to solve the race condition.
+      if (!snap.exists()) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        snap = await getDoc(doc(db, 'users', user.uid));
+      }
+
       if (snap.exists()) {
         currentUserRole = snap.data().role;
         currentUserName = snap.data().name;
